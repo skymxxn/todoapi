@@ -16,3 +16,5 @@ obj/
 logs/
 *.log
 *.cache
+
+Data/Migrations

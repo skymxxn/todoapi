@@ -1,81 +1,63 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Mapster;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TodoApi.Data;
+using TodoApi.Dtos;
+using TodoApi.Entities;
 
 namespace TodoApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class TodoController : ControllerBase
+public class TodoController(TodoContext context) : ControllerBase
 {
-    private readonly TodoContext _context;
-    public TodoController(TodoContext context)
-    {
-        _context = context;
-    }
-
     [HttpGet]
-    public async Task<ActionResult<List<TodoItem>>> Get()
+    public async Task<ActionResult<List<TodoItemDto>>> Get()
     {
-        var todos = await _context.TodoItems.ToListAsync();
-        return Ok(todos);
+        var todos = await context.TodoItems.ToListAsync();
+        return Ok(todos.Adapt<List<TodoItemDto>>());
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult> GetById(int id)
+    public async Task<ActionResult<TodoItemDto>> GetById(int id)
     {
-        return await _context.TodoItems.FindAsync(id) switch
-        {
-            TodoItem todoItem => Ok(todoItem),
-            null => NotFound(),
-        };
+        var todoItem = await context.TodoItems.FindAsync(id);
+        if (todoItem == null) return NotFound();
+        
+        return Ok(todoItem.Adapt<TodoItemDto>());
     }
     
     [HttpPost]
-    public async Task<ActionResult> Post(TodoItem todoItem)
+    public async Task<ActionResult<TodoItemDto>> Create(CreateTodoItemDto createDto)
     {
-        if (ModelState.IsValid)
-        { 
-            _context.TodoItems.Add(todoItem);
-            await _context.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetById), new { id = todoItem.Id }, todoItem);
-        }
-        return BadRequest(ModelState);
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var todoItem = createDto.Adapt<TodoItem>(); 
+        context.TodoItems.Add(todoItem);
+        await context.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetById), new { id = todoItem.Id }, todoItem.Adapt<TodoItemDto>());
     }
     
     [HttpPut("{id}")]
-    public async Task<ActionResult> Update(int id, TodoItem todoItem)
+    public async Task<ActionResult> Update(int id, CreateTodoItemDto updateDto)
     {
-        if (id != todoItem.Id)
-        {
-            return BadRequest();
-        }
-        _context.Entry(todoItem).State = EntityState.Modified;
-        try
-        {
-            await _context.SaveChangesAsync();
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            if (!await _context.TodoItems.AnyAsync(t => t.Id == id))
-            {
-                return NotFound();
-            }
-            throw;
-        }
+        var todoItem = await context.TodoItems.FindAsync(id);
+        if (todoItem == null) return NotFound();
+        
+        updateDto.Adapt(todoItem);
+        await context.SaveChangesAsync();
         return NoContent();
     }
     
     [HttpDelete("{id}")]
     public async Task<ActionResult> Delete(int id)
     {
-        var todoItem = await _context.TodoItems.FindAsync(id);
-        if (todoItem == null)
-        {
-            return NotFound();
-        }
-        _context.TodoItems.Remove(todoItem);
-        await _context.SaveChangesAsync();
+        var todoItem = await context.TodoItems.FindAsync(id);
+        if (todoItem == null) return NotFound();
+        
+        context.TodoItems.Remove(todoItem);
+        await context.SaveChangesAsync();
         return NoContent();
     }
 }
