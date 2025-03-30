@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using TodoApi.Data;
 using TodoApi.Dtos;
 using TodoApi.Entities;
@@ -32,6 +33,11 @@ public class AuthController(TodoContext context, IAuthService authService) : Con
         return Ok(token);
     }
     
-    
+    [HttpGet]
+    [Authorize]
+    public IActionResult AuthenticatedOnlyEndpoint()
+    {
+        return Ok("You are authenticated!");
+    }
     
 }

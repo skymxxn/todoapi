@@ -1,4 +1,5 @@
 ﻿using Mapster;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TodoApi.Data;
@@ -7,6 +8,7 @@ using TodoApi.Entities;
 
 namespace TodoApi.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class TodoController(TodoContext context) : ControllerBase
