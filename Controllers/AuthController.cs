@@ -12,32 +12,35 @@ namespace TodoApi.Controllers;
 public class AuthController(TodoContext context, IAuthService authService) : ControllerBase
 {
     [HttpPost("register")]
-    public async Task<ActionResult<User>> Register(UserDto request)
+    public async Task<ActionResult<UserDto>> Register(UserDto request)
     {
         var user = await authService.RegisterAsync(request);
         if (user == null)
         {
             return BadRequest("User already exists");
         }
-        return Ok(user);
+        return Ok(new {user.Username});
     }
     
     [HttpPost("login")]
-    public async Task<ActionResult<string>> Login(UserDto request)
+    public async Task<ActionResult<TokenResponseDto>> Login(UserDto request)
     {
-        var token = await authService.LoginAsync(request);
-        if (token is null)
+        var response = await authService.LoginAsync(request);
+        if (response is null)
         {
             return BadRequest("Invalid username or password.");
         }
-        return Ok(token);
+        return Ok(response);
     }
-    
-    [HttpGet]
-    [Authorize]
-    public IActionResult AuthenticatedOnlyEndpoint()
+
+    [HttpPost("refresh-token")]
+    public async Task<ActionResult<TokenResponseDto>> RefreshToken(RefreshTokenRequestDto request)
     {
-        return Ok("You are authenticated!");
+        var response = await authService.RefreshTokensAsync(request);
+        if (response is null || response.RefreshToken is null || response.AccessToken is null)
+        {
+            return Unauthorized("Invalid refresh token.");
+        }
+        return Ok(response);
     }
-    
 }
