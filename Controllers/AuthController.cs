@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TodoApi.Data;
 using TodoApi.Dtos;
@@ -42,5 +43,18 @@ public class AuthController(TodoContext context, IAuthService authService) : Con
             return Unauthorized("Invalid refresh token.");
         }
         return Ok(response);
+    }
+    
+    [HttpPost("logout")]
+    [Authorize]
+    public async Task<IActionResult> Logout()
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId is null) return Unauthorized();
+        
+        bool result = await authService.LogoutAsync(Guid.Parse(userId));
+        if (!result) return BadRequest("Logout failed.");
+        
+        return Ok("Logout successful.");
     }
 }

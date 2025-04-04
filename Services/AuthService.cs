@@ -118,4 +118,16 @@ public class AuthService(TodoContext context, IConfiguration configuration) : IA
         await context.SaveChangesAsync();
         return refreshToken;
     }
+
+    public async Task<bool> LogoutAsync(Guid userId)
+    {
+        var user = await  context.Users.FindAsync(userId);
+        if (user is null) return false;
+        
+        user.RefreshToken = null;
+        user.RefreshTokenExpiryTime = null;
+        
+        await context.SaveChangesAsync();
+        return true;
+    }
 }
