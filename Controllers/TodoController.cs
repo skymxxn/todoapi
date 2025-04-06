@@ -1,4 +1,5 @@
-﻿using Mapster;
+﻿using System.Security.Claims;
+using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,7 +17,12 @@ public class TodoController(TodoContext context) : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<TodoItemDto>>> Get()
     {
-        var todos = await context.TodoItems.ToListAsync();
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId is null) return Unauthorized();
+        
+        var todos = await context.TodoItems
+            .Where(t => t.UserId == Guid.Parse(userId))
+            .ToListAsync();
         return Ok(todos.Adapt<List<TodoItemDto>>());
     }
 
@@ -33,8 +39,13 @@ public class TodoController(TodoContext context) : ControllerBase
     public async Task<ActionResult<TodoItemDto>> Create(CreateTodoItemDto createDto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
+        
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId is null) return Unauthorized();
 
-        var todoItem = createDto.Adapt<TodoItem>(); 
+        var todoItem = createDto.Adapt<TodoItem>();
+        todoItem.UserId = Guid.Parse(userId);
+        
         context.TodoItems.Add(todoItem);
         await context.SaveChangesAsync();
 
@@ -46,6 +57,10 @@ public class TodoController(TodoContext context) : ControllerBase
     {
         var todoItem = await context.TodoItems.FindAsync(id);
         if (todoItem == null) return NotFound();
+        
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId is null) return Unauthorized();
+        if (Guid.Parse(userId) != todoItem.UserId) return Forbid();
         
         updateDto.Adapt(todoItem);
         await context.SaveChangesAsync();
