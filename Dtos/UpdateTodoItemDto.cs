@@ -2,7 +2,7 @@
 
 namespace TodoApi.Dtos;
 
-public class CreateTodoItemDto
+public class UpdateTodoItemDto
 {
     [Required]
     [StringLength(50, MinimumLength = 1)]

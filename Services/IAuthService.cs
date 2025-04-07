@@ -1,6 +1,5 @@
 ﻿using TodoApi.Dtos;
 using TodoApi.Entities;
-using TodoApi.Dtos;
 
 namespace TodoApi.Services;
 

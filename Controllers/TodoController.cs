@@ -21,6 +21,7 @@ public class TodoController(TodoContext context) : ControllerBase
         if (userId is null) return Unauthorized();
         
         var todos = await context.TodoItems
+            .Include(t => t.Category)
             .Where(t => t.UserId == Guid.Parse(userId))
             .ToListAsync();
         return Ok(todos.Adapt<List<TodoItemDto>>());
@@ -29,7 +30,14 @@ public class TodoController(TodoContext context) : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<TodoItemDto>> GetById(int id)
     {
-        var todoItem = await context.TodoItems.FindAsync(id);
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId is null) return Unauthorized();
+        
+        var todoItem = await context.TodoItems
+            .Include(t => t.Category)
+            .Where(t => t.UserId == Guid.Parse(userId) && t.Id == id)
+            .FirstOrDefaultAsync();
+        
         if (todoItem == null) return NotFound();
         
         return Ok(todoItem.Adapt<TodoItemDto>());
@@ -42,6 +50,12 @@ public class TodoController(TodoContext context) : ControllerBase
         
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();
+
+        if (createDto.CategoryId.HasValue)
+        {
+            var categoryExists = await context.Categories.AnyAsync(c => c.Id == createDto.CategoryId.Value);
+            if (!categoryExists) return BadRequest("Category not found.");
+        }
 
         var todoItem = createDto.Adapt<TodoItem>();
         todoItem.UserId = Guid.Parse(userId);
@@ -61,6 +75,12 @@ public class TodoController(TodoContext context) : ControllerBase
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();
         if (Guid.Parse(userId) != todoItem.UserId) return Forbid();
+        
+        if (updateDto.CategoryId.HasValue)
+        {
+            var categoryExists = await context.Categories.AnyAsync(c => c.Id == updateDto.CategoryId.Value);
+            if (!categoryExists) return BadRequest("Category not found.");
+        }
         
         updateDto.Adapt(todoItem);
         await context.SaveChangesAsync();
