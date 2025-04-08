@@ -6,24 +6,38 @@ using Microsoft.EntityFrameworkCore;
 using TodoApi.Data;
 using TodoApi.Dtos;
 using TodoApi.Entities;
+using TodoApi.Services;
 
 namespace TodoApi.Controllers;
 
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class TodoController(TodoContext context) : ControllerBase
+public class TodoController(TodoContext context, ITodoItemService todoItemService) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<List<TodoItemDto>>> Get()
+    public async Task<ActionResult<List<TodoItemDto>>> Get(
+        [FromQuery] string sortBy = "Name", 
+        [FromQuery] string sortOrder = "asc", 
+        [FromQuery] string? nameFilter = null,
+        [FromQuery] bool? isCompleted = null, 
+        [FromQuery] int? categoryId = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();
         
-        var todos = await context.TodoItems
-            .Include(t => t.Category)
-            .Where(t => t.UserId == Guid.Parse(userId))
-            .ToListAsync();
+        var todos = await todoItemService
+            .GetFilteredAndSortedTodos(
+                Guid.Parse(userId),
+                sortBy,
+                sortOrder,
+                nameFilter,
+                isCompleted,
+                categoryId,
+                startDate,
+                endDate);
         return Ok(todos.Adapt<List<TodoItemDto>>());
     }
 
