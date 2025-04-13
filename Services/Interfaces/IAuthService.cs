@@ -5,8 +5,10 @@ namespace TodoApi.Services;
 
 public interface IAuthService
 {
-    Task<User?> RegisterAsync(UserDto request);
-    Task<TokenResponseDto> LoginAsync(UserDto request);
+    Task<UserResponseDto> RegisterAsync(UserRegistrationDto request);
+    Task<bool> VerifyEmailTokenAsync(string token);
+
+    Task<TokenResponseDto> LoginAsync(UserLoginDto request);
     Task<TokenResponseDto> RefreshTokensAsync(RefreshTokenRequestDto request);
     Task<bool> LogoutAsync(Guid userId);
 }

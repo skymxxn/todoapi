@@ -13,23 +13,33 @@ namespace TodoApi.Controllers;
 public class AuthController(TodoContext context, IAuthService authService) : ControllerBase
 {
     [HttpPost("register")]
-    public async Task<ActionResult<UserDto>> Register(UserDto request)
+    public async Task<ActionResult<UserLoginDto>> Register(UserRegistrationDto request)
     {
         var user = await authService.RegisterAsync(request);
         if (user == null)
         {
-            return BadRequest("User already exists");
+            return BadRequest("User with the same email or username already exists.");
         }
-        return Ok(new {user.Username});
+        return Ok(user);
+    }
+    
+    [HttpGet("verify-email")]
+    public async Task<IActionResult> VerifyEmail([FromQuery] string token)
+    {
+        var result = await authService.VerifyEmailTokenAsync(token);
+        if (!result)
+            return BadRequest("Invalid or expired token.");
+
+        return Ok("Email verified successfully.");
     }
     
     [HttpPost("login")]
-    public async Task<ActionResult<TokenResponseDto>> Login(UserDto request)
+    public async Task<ActionResult<TokenResponseDto>> Login(UserLoginDto request)
     {
         var response = await authService.LoginAsync(request);
         if (response is null)
         {
-            return BadRequest("Invalid username or password.");
+            return BadRequest("Invalid email or password.");
         }
         return Ok(response);
     }
