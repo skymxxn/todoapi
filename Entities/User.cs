@@ -1,4 +1,5 @@
-﻿namespace TodoApi.Entities;
+﻿using Microsoft.AspNetCore.Identity;
+namespace TodoApi.Entities;
 
 public class User
 {

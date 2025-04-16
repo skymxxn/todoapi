@@ -12,6 +12,8 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 // Add services to the container.
 builder.Services.AddControllers();
 
+
+
 builder.Services.Configure<SmtpOptions>(
     builder.Configuration.GetSection("Smtp"));
 

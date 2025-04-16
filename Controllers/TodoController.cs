@@ -13,8 +13,15 @@ namespace TodoApi.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class TodoController(TodoContext context, ITodoItemService todoItemService) : ControllerBase
+public class TodoController : ControllerBase
 {
+    private readonly TodoContext _context;
+    private readonly ITodoItemService _todoItemService;
+    public TodoController(TodoContext context, ITodoItemService todoItemService)
+    {
+        _context = context;
+        _todoItemService = todoItemService;
+    }
     [HttpGet]
     public async Task<ActionResult<List<TodoItemDto>>> Get(
         [FromQuery] string sortBy = "Name", 
@@ -28,7 +35,7 @@ public class TodoController(TodoContext context, ITodoItemService todoItemServic
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();
         
-        var todos = await todoItemService
+        var todos = await _todoItemService
             .GetFilteredAndSortedTodos(
                 Guid.Parse(userId),
                 sortBy,
@@ -47,7 +54,7 @@ public class TodoController(TodoContext context, ITodoItemService todoItemServic
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();
         
-        var todoItem = await context.TodoItems
+        var todoItem = await _context.TodoItems
             .Include(t => t.Category)
             .Where(t => t.UserId == Guid.Parse(userId) && t.Id == id)
             .FirstOrDefaultAsync();
@@ -67,15 +74,15 @@ public class TodoController(TodoContext context, ITodoItemService todoItemServic
 
         if (createDto.CategoryId.HasValue)
         {
-            var categoryExists = await context.Categories.AnyAsync(c => c.Id == createDto.CategoryId.Value);
+            var categoryExists = await _context.Categories.AnyAsync(c => c.Id == createDto.CategoryId.Value);
             if (!categoryExists) return BadRequest("Category not found.");
         }
 
         var todoItem = createDto.Adapt<TodoItem>();
         todoItem.UserId = Guid.Parse(userId);
         
-        context.TodoItems.Add(todoItem);
-        await context.SaveChangesAsync();
+        _context.TodoItems.Add(todoItem);
+        await _context.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = todoItem.Id }, todoItem.Adapt<TodoItemDto>());
     }
@@ -83,7 +90,7 @@ public class TodoController(TodoContext context, ITodoItemService todoItemServic
     [HttpPut("{id}")]
     public async Task<ActionResult> Update(int id, CreateTodoItemDto updateDto)
     {
-        var todoItem = await context.TodoItems.FindAsync(id);
+        var todoItem = await _context.TodoItems.FindAsync(id);
         if (todoItem == null) return NotFound();
         
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -92,23 +99,23 @@ public class TodoController(TodoContext context, ITodoItemService todoItemServic
         
         if (updateDto.CategoryId.HasValue)
         {
-            var categoryExists = await context.Categories.AnyAsync(c => c.Id == updateDto.CategoryId.Value);
+            var categoryExists = await _context.Categories.AnyAsync(c => c.Id == updateDto.CategoryId.Value);
             if (!categoryExists) return BadRequest("Category not found.");
         }
         
         updateDto.Adapt(todoItem);
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
         return NoContent();
     }
     
     [HttpDelete("{id}")]
     public async Task<ActionResult> Delete(int id)
     {
-        var todoItem = await context.TodoItems.FindAsync(id);
+        var todoItem = await _context.TodoItems.FindAsync(id);
         if (todoItem == null) return NotFound();
         
-        context.TodoItems.Remove(todoItem);
-        await context.SaveChangesAsync();
+        _context.TodoItems.Remove(todoItem);
+        await _context.SaveChangesAsync();
         return NoContent();
     }
 }

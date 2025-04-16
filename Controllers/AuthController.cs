@@ -1,6 +1,7 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using TodoApi.Data;
 using TodoApi.Dtos;
 using TodoApi.Entities;
@@ -10,12 +11,19 @@ namespace TodoApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AuthController(TodoContext context, IAuthService authService) : ControllerBase
+public class AuthController : ControllerBase
 {
+    private readonly IAuthService _authService;
+    private readonly TodoContext _context;
+    public AuthController(IAuthService authService, TodoContext context)
+    {
+        _context = context;
+        _authService = authService;
+    }
     [HttpPost("register")]
     public async Task<ActionResult<UserLoginDto>> Register(UserRegistrationDto request)
     {
-        var user = await authService.RegisterAsync(request);
+        var user = await _authService.RegisterAsync(request);
         if (user == null)
         {
             return BadRequest("User with the same email or username already exists.");
@@ -26,7 +34,7 @@ public class AuthController(TodoContext context, IAuthService authService) : Con
     [HttpGet("verify-email")]
     public async Task<IActionResult> VerifyEmail([FromQuery] string token)
     {
-        var result = await authService.VerifyEmailTokenAsync(token);
+        var result = await _authService.VerifyEmailTokenAsync(token);
         if (!result)
             return BadRequest("Invalid or expired token.");
 
@@ -36,7 +44,7 @@ public class AuthController(TodoContext context, IAuthService authService) : Con
     [HttpPost("login")]
     public async Task<ActionResult<TokenResponseDto>> Login(UserLoginDto request)
     {
-        var response = await authService.LoginAsync(request);
+        var response = await _authService.LoginAsync(request);
         if (response is null)
         {
             return BadRequest("Invalid email or password.");
@@ -47,12 +55,43 @@ public class AuthController(TodoContext context, IAuthService authService) : Con
     [HttpPost("refresh-token")]
     public async Task<ActionResult<TokenResponseDto>> RefreshToken(RefreshTokenRequestDto request)
     {
-        var response = await authService.RefreshTokensAsync(request);
+        var response = await _authService.RefreshTokensAsync(request);
         if (response is null || response.RefreshToken is null || response.AccessToken is null)
         {
             return Unauthorized("Invalid refresh token.");
         }
         return Ok(response);
+    }
+
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword(ChangePasswordDto request)
+    {
+        var result = await _authService.ChangePasswordAsync(
+            Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty), request);
+        if (!result)
+        {
+            return BadRequest("Failed to change password.");
+        }
+        return Ok("Password changed successfully.");
+    }
+
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordDto request)
+    {
+        var result = await _authService.RequestPasswordResetAsync(request.Email);
+        if (!result) return BadRequest("User not found or email is not verified.");
+        
+        return Ok("Password reset email sent.");
+    }
+    
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(PasswordResetDto request)
+    {
+        var result = await _authService.ResetPasswordAsync(request.Token, request.NewPassword);
+        if (!result) return BadRequest("Invalid or expired token.");
+        
+        return Ok("Password reset successfully.");
     }
     
     [HttpPost("logout")]
@@ -62,7 +101,7 @@ public class AuthController(TodoContext context, IAuthService authService) : Con
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();
         
-        bool result = await authService.LogoutAsync(Guid.Parse(userId));
+        bool result = await _authService.LogoutAsync(Guid.Parse(userId));
         if (!result) return BadRequest("Logout failed.");
         
         return Ok("Logout successful.");

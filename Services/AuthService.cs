@@ -2,6 +2,7 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -13,15 +14,24 @@ using TodoApi.Options;
 
 namespace TodoApi.Services;
 
-public class AuthService(TodoContext context, IConfiguration configuration, IOptions<SmtpOptions> options) : IAuthService
+public class AuthService : IAuthService
 {
-    private readonly SmtpOptions _options = options.Value;
+    private readonly TodoContext _context;
+    private readonly IConfiguration _configuration;
+    private readonly SmtpOptions _options;
+    
+    public AuthService(TodoContext context, IConfiguration configuration, IOptions<SmtpOptions> options)
+    {
+        _context = context;
+        _configuration = configuration;
+        _options = options.Value;
+    }
     /// Register user and return user object
     public async Task<UserResponseDto> RegisterAsync(UserRegistrationDto request)
     {
         // Check if user already exists
-        if (await context.Users.AnyAsync(u => u.Username == request.Username
-                                              || u.Email == request.Email))
+        if (await _context.Users.AnyAsync(u => u.Username == request.Username
+                                               || u.Email == request.Email))
         {
             return null;
         }
@@ -38,8 +48,8 @@ public class AuthService(TodoContext context, IConfiguration configuration, IOpt
         };
         
         // Save user to database
-        context.Users.Add(user);
-        await context.SaveChangesAsync();
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
         
         var emailToken = CreateEmailVerificationToken(user);
         await SendVerificationEmailAsync(user.Email, emailToken);
@@ -67,12 +77,12 @@ public class AuthService(TodoContext context, IConfiguration configuration, IOpt
             new Claim(ClaimTypes.Email, user.Email)
         };
         
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["AppSettings:EmailToken"]!));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["AppSettings:EmailToken"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512);
         
         var tokenDescriptor = new JwtSecurityToken(
-            issuer: configuration["AppSettings:Issuer"],
-            audience: configuration["AppSettings:Audience"],
+            issuer: _configuration["AppSettings:Issuer"],
+            audience: _configuration["AppSettings:Audience"],
             claims: claims,
             expires: DateTime.UtcNow.AddDays(1),
             signingCredentials: creds
@@ -85,7 +95,7 @@ public class AuthService(TodoContext context, IConfiguration configuration, IOpt
     public async Task<bool> VerifyEmailTokenAsync(string token)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.UTF8.GetBytes(configuration["AppSettings:EmailToken"]!);
+        var key = Encoding.UTF8.GetBytes(_configuration["AppSettings:EmailToken"]!);
 
         try
         {
@@ -94,20 +104,20 @@ public class AuthService(TodoContext context, IConfiguration configuration, IOpt
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(key),
                 ValidateIssuer = true,
-                ValidIssuer = configuration["AppSettings:Issuer"],
+                ValidIssuer = _configuration["AppSettings:Issuer"],
                 ValidateAudience = true,
-                ValidAudience = configuration["AppSettings:Audience"],
+                ValidAudience = _configuration["AppSettings:Audience"],
                 ValidateLifetime = true,
                 ClockSkew = TimeSpan.Zero
             }, out SecurityToken validatedToken);
             var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (userId is null) return false;
             
-            var user = await context.Users.FindAsync(Guid.Parse(userId));
+            var user = await _context.Users.FindAsync(Guid.Parse(userId));
             if (user is null) return false;
             
             user.IsEmailVerified = true;
-            await context.SaveChangesAsync();
+            await _context.SaveChangesAsync();
             return true;
         } 
         catch
@@ -115,7 +125,8 @@ public class AuthService(TodoContext context, IConfiguration configuration, IOpt
             return false;
         }
     }
-   
+    
+    
     /// Send verification email to user
     private async Task SendVerificationEmailAsync(string email, string emailToken)
     {
@@ -142,7 +153,7 @@ public class AuthService(TodoContext context, IConfiguration configuration, IOpt
     /// Login user and return access and refresh tokens
     public async Task<TokenResponseDto> LoginAsync(UserLoginDto request)
     {
-        var user = await context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
         // Check if user exists and if password is correct
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
@@ -158,8 +169,8 @@ public class AuthService(TodoContext context, IConfiguration configuration, IOpt
        
         // Update last login time
         user.LastLogin = DateTime.UtcNow;
-        context.Users.Update(user);
-        await context.SaveChangesAsync();
+        _context.Users.Update(user);
+        await _context.SaveChangesAsync();
         
         return await CreateTokenResponse(user);
     }
@@ -185,14 +196,14 @@ public class AuthService(TodoContext context, IConfiguration configuration, IOpt
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Role, user.Role)
         };
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration.GetValue<string>("AppSettings:Token")!));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration.GetValue<string>("AppSettings:Token")!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512);
         
         var tokenDescriptor = new JwtSecurityToken(
-            issuer: configuration.GetValue<string>("AppSettings:Issuer"),
-            audience: configuration.GetValue<string>("AppSettings:Audience"),
+            issuer: _configuration.GetValue<string>("AppSettings:Issuer"),
+            audience: _configuration.GetValue<string>("AppSettings:Audience"),
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(10),
+            expires: DateTime.UtcNow.AddMinutes(20),
             signingCredentials: creds
         );
         
@@ -213,7 +224,7 @@ public class AuthService(TodoContext context, IConfiguration configuration, IOpt
     /// Validate refresh token and check if it is expired
     private async Task<User?> ValidateRefreshTokenAsync(Guid userId, string refreshToken)
     {
-        var user = await context.Users.FindAsync(userId);
+        var user = await _context.Users.FindAsync(userId);
         if (user == null || user.RefreshToken != refreshToken 
                          || user.RefreshTokenExpiryTime < DateTime.UtcNow)
         {
@@ -238,20 +249,129 @@ public class AuthService(TodoContext context, IConfiguration configuration, IOpt
         var refreshToken = GenerateRefreshToken();
         user.RefreshToken = refreshToken;
         user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
         return refreshToken;
+    }
+
+    /// Change user password
+    public async Task<bool> ChangePasswordAsync(Guid userId,ChangePasswordDto request)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user is null) return false;
+        
+        if (!BCrypt.Net.BCrypt.Verify(request.OldPassword, user.PasswordHash))
+        {
+            return false;
+        }
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        _context.Users.Update(user);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    /// Request password reset and send email with reset link
+    public async Task<bool> RequestPasswordResetAsync(string email)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+        if (user is null || !user.IsEmailVerified) return false;
+        
+        var token = CreatePasswordResetToken(user);
+        await SendPasswordResetEmailAsync(user.Email, token);
+        return true;
+    }
+
+    /// Create password reset token
+    private string CreatePasswordResetToken(User user)
+    {
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.Email, user.Email)
+        };
+        
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["AppSettings:EmailToken"]!));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512);
+        
+        var tokenDescriptor = new JwtSecurityToken(
+            issuer: _configuration["AppSettings:Issuer"],
+            audience: _configuration["AppSettings:Audience"],
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(1),
+            signingCredentials: creds
+        );
+        
+        return new JwtSecurityTokenHandler().WriteToken(tokenDescriptor);
+    }
+    
+    /// Send password reset email to user
+    private async Task SendPasswordResetEmailAsync(string email, string token)
+    {
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress("TodoApp Support", _options.Email));
+        message.To.Add( new MailboxAddress(null, email));
+        message.Subject = "Password Reset";
+        var resetLink = $"http://localhost:5270/api/auth/reset-password?token={token}";
+        message.Body = new TextPart("html")
+        {
+            Text = $"<h1>Password Reset</h1>" +
+                   $"<p>Please click the link below to reset your password:</p>" +
+                   $"<a href=\"{resetLink}\">Reset Password</a>" +
+                   $"<p>If you did not request this, please ignore this email.</p>"
+        };
+        
+        using var client = new MailKit.Net.Smtp.SmtpClient();
+        await client.ConnectAsync(_options.Host, _options.Port, MailKit.Security.SecureSocketOptions.StartTls);
+        await client.AuthenticateAsync(_options.Email, _options.Password);
+        await client.SendAsync(message);
+        await client.DisconnectAsync(true);
+    }
+
+    /// Reset user password using token
+    public async Task<bool> ResetPasswordAsync(string token, string newPassword)
+    {
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.UTF8.GetBytes(_configuration["AppSettings:EmailToken"]!);
+
+        try
+        {
+            var principal = tokenHandler.ValidateToken(token, new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(key),
+                ValidateIssuer = true,
+                ValidIssuer = _configuration["AppSettings:Issuer"],
+                ValidateAudience = true,
+                ValidAudience = _configuration["AppSettings:Audience"],
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.Zero
+            }, out SecurityToken validatedToken);
+            
+            var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId is null) return false;
+            
+            var user = await _context.Users.FindAsync(Guid.Parse(userId));
+            if (user is null) return false;
+            
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// Logout user by removing refresh token
     public async Task<bool> LogoutAsync(Guid userId)
     {
-        var user = await  context.Users.FindAsync(userId);
+        var user = await  _context.Users.FindAsync(userId);
         if (user is null) return false;
         
         user.RefreshToken = null;
         user.RefreshTokenExpiryTime = null;
         
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
         return true;
     }
 }

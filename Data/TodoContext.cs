@@ -8,5 +8,6 @@ public class TodoContext(DbContextOptions<TodoContext> options) : DbContext(opti
     public DbSet<TodoItem> TodoItems => Set<TodoItem>();
     public DbSet<User> Users => Set<User>();
     public DbSet<Category> Categories => Set<Category>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 }
 
