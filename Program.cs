@@ -3,16 +3,15 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
-using TodoApi.Data;
-using TodoApi.Options;
-using TodoApi.Services;
+using Todo.Api.Data;
+using Todo.Api.Options;
+using Todo.Api.Services;
+using Todo.Api.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 // Add services to the container.
 builder.Services.AddControllers();
-
-
 
 builder.Services.Configure<SmtpOptions>(
     builder.Configuration.GetSection("Smtp"));
@@ -34,11 +33,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<ITodoItemService, TodoItemService>();
+builder.Services.AddScoped<ITodoService, TodoService>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-builder.Services.AddDbContext<TodoContext>(options =>
+builder.Services.AddDbContext<TodoDbContext>(options =>
     options.UseNpgsql(connectionString));
 
 var app = builder.Build();

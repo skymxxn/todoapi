@@ -2,27 +2,29 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MimeKit;
-using TodoApi.Data;
-using TodoApi.Dtos;
-using TodoApi.Entities;
-using TodoApi.Options;
+using Todo.Api.Data;
+using Todo.Api.Dtos;
+using Todo.Api.Dtos.Token;
+using Todo.Api.Dtos.User;
+using Todo.Api.Entities;
+using Todo.Api.Options;
+using Todo.Api.Services.Interfaces;
 
-namespace TodoApi.Services;
+namespace Todo.Api.Services;
 
 public class AuthService : IAuthService
 {
-    private readonly TodoContext _context;
+    private readonly TodoDbContext _dbContext;
     private readonly IConfiguration _configuration;
     private readonly SmtpOptions _options;
     
-    public AuthService(TodoContext context, IConfiguration configuration, IOptions<SmtpOptions> options)
+    public AuthService(TodoDbContext dbContext, IConfiguration configuration, IOptions<SmtpOptions> options)
     {
-        _context = context;
+        _dbContext = dbContext;
         _configuration = configuration;
         _options = options.Value;
     }
@@ -30,7 +32,7 @@ public class AuthService : IAuthService
     public async Task<UserResponseDto> RegisterAsync(UserRegistrationDto request)
     {
         // Check if user already exists
-        if (await _context.Users.AnyAsync(u => u.Username == request.Username
+        if (await _dbContext.Users.AnyAsync(u => u.Username == request.Username
                                                || u.Email == request.Email))
         {
             return null;
@@ -48,8 +50,8 @@ public class AuthService : IAuthService
         };
         
         // Save user to database
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
+        _dbContext.Users.Add(user);
+        await _dbContext.SaveChangesAsync();
         
         var emailToken = CreateEmailVerificationToken(user);
         await SendVerificationEmailAsync(user.Email, emailToken);
@@ -113,11 +115,11 @@ public class AuthService : IAuthService
             var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (userId is null) return false;
             
-            var user = await _context.Users.FindAsync(Guid.Parse(userId));
+            var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
             if (user is null) return false;
             
             user.IsEmailVerified = true;
-            await _context.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync();
             return true;
         } 
         catch
@@ -153,7 +155,7 @@ public class AuthService : IAuthService
     /// Login user and return access and refresh tokens
     public async Task<TokenResponseDto> LoginAsync(UserLoginDto request)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
         // Check if user exists and if password is correct
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
@@ -169,8 +171,8 @@ public class AuthService : IAuthService
        
         // Update last login time
         user.LastLogin = DateTime.UtcNow;
-        _context.Users.Update(user);
-        await _context.SaveChangesAsync();
+        _dbContext.Users.Update(user);
+        await _dbContext.SaveChangesAsync();
         
         return await CreateTokenResponse(user);
     }
@@ -224,7 +226,7 @@ public class AuthService : IAuthService
     /// Validate refresh token and check if it is expired
     private async Task<User?> ValidateRefreshTokenAsync(Guid userId, string refreshToken)
     {
-        var user = await _context.Users.FindAsync(userId);
+        var user = await _dbContext.Users.FindAsync(userId);
         if (user == null || user.RefreshToken != refreshToken 
                          || user.RefreshTokenExpiryTime < DateTime.UtcNow)
         {
@@ -249,14 +251,14 @@ public class AuthService : IAuthService
         var refreshToken = GenerateRefreshToken();
         user.RefreshToken = refreshToken;
         user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
-        await _context.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync();
         return refreshToken;
     }
 
     /// Change user password
     public async Task<bool> ChangePasswordAsync(Guid userId,ChangePasswordDto request)
     {
-        var user = await _context.Users.FindAsync(userId);
+        var user = await _dbContext.Users.FindAsync(userId);
         if (user is null) return false;
         
         if (!BCrypt.Net.BCrypt.Verify(request.OldPassword, user.PasswordHash))
@@ -264,15 +266,15 @@ public class AuthService : IAuthService
             return false;
         }
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-        _context.Users.Update(user);
-        await _context.SaveChangesAsync();
+        _dbContext.Users.Update(user);
+        await _dbContext.SaveChangesAsync();
         return true;
     }
 
     /// Request password reset and send email with reset link
     public async Task<bool> RequestPasswordResetAsync(string email)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
         if (user is null || !user.IsEmailVerified) return false;
         
         var token = CreatePasswordResetToken(user);
@@ -349,11 +351,11 @@ public class AuthService : IAuthService
             var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (userId is null) return false;
             
-            var user = await _context.Users.FindAsync(Guid.Parse(userId));
+            var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
             if (user is null) return false;
             
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
-            await _context.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync();
             return true;
         }
         catch
@@ -365,13 +367,13 @@ public class AuthService : IAuthService
     /// Logout user by removing refresh token
     public async Task<bool> LogoutAsync(Guid userId)
     {
-        var user = await  _context.Users.FindAsync(userId);
+        var user = await  _dbContext.Users.FindAsync(userId);
         if (user is null) return false;
         
         user.RefreshToken = null;
         user.RefreshTokenExpiryTime = null;
         
-        await _context.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync();
         return true;
     }
 }

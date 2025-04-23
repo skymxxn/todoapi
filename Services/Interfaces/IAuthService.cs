@@ -1,8 +1,7 @@
-﻿using System.Security.Claims;
-using TodoApi.Dtos;
-using TodoApi.Entities;
+﻿using Todo.Api.Dtos.Token;
+using Todo.Api.Dtos.User;
 
-namespace TodoApi.Services;
+namespace Todo.Api.Services.Interfaces;
 
 public interface IAuthService
 {

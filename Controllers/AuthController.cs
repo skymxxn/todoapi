@@ -2,22 +2,25 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using TodoApi.Data;
-using TodoApi.Dtos;
-using TodoApi.Entities;
-using TodoApi.Services;
+using Todo.Api.Data;
+using Todo.Api.Dtos;
+using Todo.Api.Dtos.Token;
+using Todo.Api.Dtos.User;
+using Todo.Api.Services;
+using Todo.Api.Entities;
+using Todo.Api.Services.Interfaces;
 
-namespace TodoApi.Controllers;
+namespace Todo.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
-    private readonly TodoContext _context;
-    public AuthController(IAuthService authService, TodoContext context)
+    private readonly TodoDbContext _dbContext;
+    public AuthController(IAuthService authService, TodoDbContext dbContext)
     {
-        _context = context;
+        _dbContext = dbContext;
         _authService = authService;
     }
     [HttpPost("register")]

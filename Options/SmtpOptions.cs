@@ -1,4 +1,4 @@
-﻿namespace TodoApi.Options;
+﻿namespace Todo.Api.Options;
 
 public class SmtpOptions
 {

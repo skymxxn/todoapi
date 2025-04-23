@@ -1,4 +1,4 @@
-﻿namespace TodoApi.Dtos;
+﻿namespace Todo.Api.Dtos.Token;
 
 public class RefreshTokenRequestDto
 {

@@ -1,4 +1,4 @@
-﻿namespace TodoApi.Dtos;
+﻿namespace Todo.Api.Dtos.User;
 
 public class UserResponseDto
 {

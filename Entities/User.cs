@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Identity;
-namespace TodoApi.Entities;
+namespace Todo.Api.Entities;
 
 public class User
 {

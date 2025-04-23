@@ -1,22 +1,106 @@
-﻿*.db
-*.db-journal
-
-appsettings.Development.json
-secrets.json
-
+﻿# .NET
 bin/
 obj/
-
-.vscode/
-.idea/
-*.suo
+out/
 *.user
+*.suo
+*.userosscache
 *.sln.docstates
+*.cache
+*.csproj.user
+*.dbmdl
+*.pdb
+*.mdb
+*.ilk
+*.log
+*.vspscc
+*.vssscc
 
+# Rider, VSCode, VS Configurations
+.idea/
+.vscode/
+.vs/
+
+# NuGet
+*.nupkg
+*.snupkg
+*.nuspec
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Confidential/secret files
+secrets.json
+appsettings.Development.json
+appsettings.Local.json
+appsettings.*.json
+*.key
+*.pem
+*.pfx
+*.cert
+*.env
+.env.*
+*.bak
+*.sqlite
+*.db
+
+# Logs directories, cashe, temp
 logs/
 *.log
-*.cache
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.orig
 
-Data/Migrations
+# node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
 
-*.http
+# Frontend (React/Blazor)
+dist/
+build/
+
+# MacOS, Linux, Windows system files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+*.stackdump
+*.patch
+
+# Docker, Kubernetes и CI
+docker-compose.override.yml
+*.pid
+*.pid.lock
+*.sock
+*.tar
+*.gz
+
+# Git file commits
+*.mergeBackup
+*.rej
+*.orig
+
+# Test reports
+TestResult*/ 
+*.trx
+coverage/
+lcov.info
+.nyc_output/
+coverage-final.json
+
+# JetBrains Rider 
+.idea/
+*.sln.iml
+
+# ASP.NET Identity DB
+*.db-shm
+*.db-wal
+
+Data/Migratioins
