@@ -1,7 +1,10 @@
-﻿namespace Todo.Api.Dtos.Todo;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace Todo.Api.Dtos.Todo;
 
 public class TodoResultDto<T>
 {
+    [MemberNotNullWhen(true, nameof(Data))]
     public bool Success { get; set; }
     public string? ErrorMessage { get; set; }
     public T? Data { get; set; }

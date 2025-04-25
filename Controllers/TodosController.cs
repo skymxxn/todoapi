@@ -3,7 +3,6 @@ using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Todo.Api.Services.Interfaces;
-using Todo.Api.Dtos;
 using Todo.Api.Dtos.Todo;
 
 namespace Todo.Api.Controllers;
@@ -53,10 +52,14 @@ public class TodosController : ControllerBase
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();
 
-        var todoItem = await _todoService.GetTodoByIdAsync(id, Guid.Parse(userId));
-        if (todoItem is null) return NotFound();
+        var result = await _todoService.GetTodoByIdAsync(id, Guid.Parse(userId));
         
-        return Ok(todoItem.Adapt<TodoItemDto>());
+        if (!result.Success)
+        {
+            return BadRequest(result.ErrorMessage);
+        }
+        
+        return Ok(result.Data);
     }
     
     [HttpPost]

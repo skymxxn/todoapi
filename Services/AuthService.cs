@@ -7,7 +7,6 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MimeKit;
 using Todo.Api.Data;
-using Todo.Api.Dtos;
 using Todo.Api.Dtos.Token;
 using Todo.Api.Dtos.User;
 using Todo.Api.Entities;
@@ -29,7 +28,7 @@ public class AuthService : IAuthService
         _options = options.Value;
     }
     /// Register user and return user object
-    public async Task<UserResponseDto> RegisterAsync(UserRegistrationDto request)
+    public async Task<UserResponseDto?> RegisterAsync(UserRegistrationDto request)
     {
         // Check if user already exists
         if (await _dbContext.Users.AnyAsync(u => u.Username == request.Username
@@ -128,7 +127,6 @@ public class AuthService : IAuthService
         }
     }
     
-    
     /// Send verification email to user
     private async Task SendVerificationEmailAsync(string email, string emailToken)
     {
@@ -153,7 +151,7 @@ public class AuthService : IAuthService
     }
     
     /// Login user and return access and refresh tokens
-    public async Task<TokenResponseDto> LoginAsync(UserLoginDto request)
+    public async Task<TokenResponseDto?> LoginAsync(UserLoginDto request)
     {
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
         // Check if user exists and if password is correct
@@ -213,7 +211,7 @@ public class AuthService : IAuthService
     }
     
     /// Validate refresh token and generate new access and refresh tokens
-    public async Task<TokenResponseDto> RefreshTokensAsync(RefreshTokenRequestDto request)
+    public async Task<TokenResponseDto?> RefreshTokensAsync(RefreshTokenRequestDto request)
     {
         var user = await ValidateRefreshTokenAsync(request.UserId, request.RefreshToken);
         if (user is null)
