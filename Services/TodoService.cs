@@ -24,6 +24,15 @@ namespace Todo.Api.Services
             DateTime? startDate, DateTime? endDate
             )
         {
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null)
+            {
+                _logger.LogWarning("User {Username} not found", userId);
+                throw new Exception("User not found");
+            }
+            
             IQueryable<TodoItem> query = _context.TodoItems
                 .Where(t => t.UserId == userId)
                 .Include(t => t.Category);
@@ -64,12 +73,12 @@ namespace Todo.Api.Services
                     query = sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(t => t.CreatedAt) : query.OrderBy(t => t.CreatedAt);
                     break;
                 default:
-                    query = query.OrderBy(t => t.Name);
+                    query = query.OrderBy(t => t.CreatedAt);
                     break;
             }
 
-            _logger.LogInformation("Fetching todos for user {UserId} with filters: Name={NameFilter}, IsCompleted={IsCompleted}, CategoryId={CategoryId}, StartDate={StartDate}, EndDate={EndDate}",
-                userId, nameFilter, isCompleted, categoryId, startDate, endDate);
+            _logger.LogInformation("Fetching todos for user {Username} with filters: Name={NameFilter}, IsCompleted={IsCompleted}, CategoryId={CategoryId}, StartDate={StartDate}, EndDate={EndDate}",
+                user.Username, nameFilter, isCompleted, categoryId, startDate, endDate);
             _logger.LogInformation("Sorting todos by {SortBy} in {SortOrder} order", sortBy, sortOrder);
 
             var result = await query.ToListAsync();
@@ -79,9 +88,14 @@ namespace Todo.Api.Services
         
         public async Task<TodoResultDto<TodoItemDto>> GetTodoByIdAsync(int id, Guid userId)
         {
-            _logger.LogInformation("Attempting to fetch Todo with ID {TodoId} for user {UserId}", id, userId);
-
-            // Запрашиваем задачу по ID
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == userId);
+            if (user == null)
+            {
+                _logger.LogWarning("User {Username} not found", userId);
+                return TodoResultDto<TodoItemDto>.Fail("User not found.");
+            }
+            
             var todoItem = await _context.TodoItems
                 .Include(t => t.Category)
                 .AsNoTracking()
@@ -89,25 +103,34 @@ namespace Todo.Api.Services
 
             if (todoItem == null)
             {
-                _logger.LogWarning("Todo with ID {TodoId} not found for user {UserId}.", id, userId);
+                _logger.LogWarning("Todo with ID {TodoId} not found for user {Username}.", id, user.Username);
                 return TodoResultDto<TodoItemDto>.Fail("Todo not found.");
             }
 
             if (todoItem.UserId != userId)
             {
-                _logger.LogWarning("User {UserId} attempted to access Todo with ID {TodoId} without permission. This Todo belongs to User {TodoUserId}.", userId, id, todoItem.UserId);
+                var owner = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Id == todoItem.UserId);
+                
+                _logger.LogWarning("User {Username} attempted to access Todo with ID {TodoId} without permission. This Todo belongs to user {OwnerUsername}.", user.Username, id, owner?.Username);
                 return TodoResultDto<TodoItemDto>.Fail("Access denied.");
             }
 
-            _logger.LogInformation("Todo with ID {TodoId} found for user {UserId}", id, userId);
+            _logger.LogInformation("Todo with ID {TodoId} found for user {Username}", id, user.Username);
 
             return TodoResultDto<TodoItemDto>.Ok(todoItem.Adapt<TodoItemDto>());
         }
-
-
+        
         public async Task<TodoResultDto<TodoItemDto>> CreateTodoAsync(CreateTodoItemDto createDto, Guid userId)
         {
-            _logger.LogInformation("Attempting to create a new Todo by user {UserId}: {Todo}", userId, createDto.Name);
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == userId);
+            
+            if (user is null)
+            {
+                _logger.LogWarning("User {Username} not found", userId);
+                return TodoResultDto<TodoItemDto>.Fail("User not found.");
+            }
             
             if (createDto.CategoryId.HasValue)
             {
@@ -127,7 +150,7 @@ namespace Todo.Api.Services
             _context.TodoItems.Add(todoItem);
             await _context.SaveChangesAsync();
             
-            _logger.LogInformation("Todo successfully created with ID {TodoId}", todoItem.Id);
+            _logger.LogInformation("Todo successfully created with ID {TodoId} by user {Username}", todoItem.Id, user.Username);
             
             await _context.Entry(todoItem).Reference(t => t.Category).LoadAsync();
             
@@ -137,7 +160,14 @@ namespace Todo.Api.Services
 
         public async Task<TodoResultDto<TodoItemDto>> UpdateTodoAsync(int id, UpdateTodoItemDto updateDto, Guid userId)
         {
-            _logger.LogInformation("Attempting to update Todo with ID {TodoId} by user {UserId}", id, userId);
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user is null)
+            {
+                _logger.LogWarning("User {Username} not found", userId);
+                return TodoResultDto<TodoItemDto>.Fail("User not found.");
+            }
             
             var todoItem = await _context.TodoItems.FindAsync(id);
             if (todoItem == null)
@@ -148,7 +178,10 @@ namespace Todo.Api.Services
 
             if (todoItem.UserId != userId)
             {
-                _logger.LogWarning("User {UserId} attempted to update Todo with ID {TodoId} without permission. This Todo belongs to User {TodoUserId}.", userId, id, todoItem.UserId);
+                var owner = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Id == todoItem.UserId);
+                
+                _logger.LogWarning("User {Username} attempted to update Todo with ID {TodoId} without permission. This Todo belongs to user {OwnerUsername}.", user.Username, id, owner?.Username);
                 return TodoResultDto<TodoItemDto>.Fail("Access denied.");
             }
             
@@ -167,14 +200,21 @@ namespace Todo.Api.Services
             updateDto.Adapt(todoItem);
             await _context.SaveChangesAsync();
             
-            _logger.LogInformation("Todo with ID {TodoId} successfully updated.", id);
+            _logger.LogInformation("Todo with ID {TodoId} successfully updated by user {Username}.", id, user.Username);
             
             return TodoResultDto<TodoItemDto>.Ok(null);
         }
         
         public async Task<TodoResultDto<TodoItemDto>> DeleteTodoAsync(int id, Guid userId)
         {
-            _logger.LogInformation("Attempting to delete Todo with ID {TodoId} by user {UserId}", id, userId);
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user is null)
+            {
+                _logger.LogWarning("User {Username} not found", userId);
+                return TodoResultDto<TodoItemDto>.Fail("User not found.");
+            }
             
             var todoItem = await _context.TodoItems.FindAsync(id);
             if (todoItem == null)
@@ -185,14 +225,17 @@ namespace Todo.Api.Services
 
             if (todoItem.UserId != userId)
             {
-                _logger.LogWarning("User {UserId} attempted to update Todo with ID {TodoId} without permission. This Todo belongs to User {TodoUserId}.", userId, id, todoItem.UserId);
+                var owner = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Id == todoItem.UserId);
+                
+                _logger.LogWarning("User {Username} attempted to update Todo with ID {TodoId} without permission. This Todo belongs to user {OwnerUsername}.", user.Username, id, owner?.Username);
                 return TodoResultDto<TodoItemDto>.Fail("Access denied.");
             }
             
             _context.TodoItems.Remove(todoItem);
             await _context.SaveChangesAsync();
             
-            _logger.LogInformation("Todo with ID {TodoId} successfully deleted.", id);
+            _logger.LogInformation("Todo with ID {TodoId} successfully deleted by user {Username}.", id, user.Username);
             
             return TodoResultDto<TodoItemDto>.Ok(null);
         }

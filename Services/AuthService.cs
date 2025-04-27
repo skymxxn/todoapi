@@ -135,7 +135,7 @@ public class AuthService : IAuthService
             user.IsEmailVerified = true;
             await _dbContext.SaveChangesAsync();
             
-            _logger.LogInformation("User with ID {UserId} email verified successfully", userId);
+            _logger.LogInformation("User {Username} verified email successfully", user.Username);
             return true;
         } 
         catch (Exception ex)
@@ -196,7 +196,6 @@ public class AuthService : IAuthService
             var emailToken = CreateEmailVerificationToken(user);
             await SendVerificationEmailAsync(user.Email, emailToken);
             
-            _logger.LogInformation("Verification email sent to {Email}", request.Email);
             return null;
         }
        
@@ -205,7 +204,7 @@ public class AuthService : IAuthService
         _dbContext.Users.Update(user);
         await _dbContext.SaveChangesAsync();
         
-        _logger.LogInformation("User with email {Email} logged in successfully", request.Email);
+        _logger.LogInformation("User {Username} with email {Email} logged in successfully", user.Username, request.Email);
         return await CreateTokenResponse(user);
     }
 
@@ -262,10 +261,15 @@ public class AuthService : IAuthService
     private async Task<User?> ValidateRefreshTokenAsync(Guid userId, string refreshToken)
     {
         var user = await _dbContext.Users.FindAsync(userId);
-        if (user == null || user.RefreshToken != refreshToken 
+        if (user is null)
+        {
+            _logger.LogWarning("User with ID {UserId} does not exist", userId);
+            return null;
+        }
+        if (user.RefreshToken != refreshToken 
                          || user.RefreshTokenExpiryTime < DateTime.UtcNow)
         {
-            _logger.LogError("Invalid refresh token for user {UserId}", userId);
+            _logger.LogError("Invalid refresh token for user {Username}", user.Username);
             return null;
         }
         
@@ -306,7 +310,7 @@ public class AuthService : IAuthService
         
         if (!BCrypt.Net.BCrypt.Verify(request.OldPassword, user.PasswordHash))
         {
-            _logger.LogWarning("Invalid old password for user with ID {UserId}", userId);
+            _logger.LogWarning("Invalid old password for user {Username}", user.Username);
             return false;
         }
         
@@ -314,7 +318,7 @@ public class AuthService : IAuthService
         _dbContext.Users.Update(user);
         await _dbContext.SaveChangesAsync();
         
-        _logger.LogInformation("Password changed successfully for user with ID {UserId}", userId);
+        _logger.LogInformation("Password changed successfully for user {Username}", user.Username);
         return true;
     }
 
@@ -322,9 +326,15 @@ public class AuthService : IAuthService
     public async Task<bool> RequestPasswordResetAsync(string email)
     {
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
-        if (user is null || !user.IsEmailVerified)
+        if (user is null)
         {
-            _logger.LogWarning("User with email {Email} does not exist or has not verified their email", email);
+            _logger.LogWarning("User with email {Email} does not exist", email);
+            return false;
+        }
+        
+        if (!user.IsEmailVerified)
+        {
+            _logger.LogWarning("User with email {Email} has not verified their email", email);
             return false;
         }
         
@@ -428,7 +438,7 @@ public class AuthService : IAuthService
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
             await _dbContext.SaveChangesAsync();
             
-            _logger.LogInformation("Password reset successfully for user with ID {UserId}", userId);
+            _logger.LogInformation("Password reset successfully for user {Username}", user.Username);
             return true;
         }
         catch (Exception ex)
@@ -453,7 +463,7 @@ public class AuthService : IAuthService
         
         await _dbContext.SaveChangesAsync();
         
-        _logger.LogInformation("User with ID {UserId} logged out successfully", userId);
+        _logger.LogInformation("User {Username} logged out successfully", user.Username);
         return true;
     }
 }
