@@ -8,8 +8,19 @@ public class TodoResultDto<T>
     public bool Success { get; set; }
     public string? ErrorMessage { get; set; }
     public T? Data { get; set; }
+    public int StatusCode { get; set; }
     
-    public static TodoResultDto<T> Ok(T? data) => new() { Success = true, Data = data };
-    public static TodoResultDto<T> Fail(string error) => new() { Success = false, ErrorMessage = error };
+    public static TodoResultDto<T> Ok(T? data, int statusCode = 200) => new()
+    {
+        Success = true,
+        Data = data,
+        StatusCode = statusCode
+    };
+    public static TodoResultDto<T> Fail(string error, int statusCode = 400) => new()
+    {
+        Success = false,
+        ErrorMessage = error,
+        StatusCode = statusCode
+    };
     
 }

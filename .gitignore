@@ -103,4 +103,4 @@ coverage-final.json
 *.db-shm
 *.db-wal
 
-Data/Migratioins
+Data/Migrations

@@ -46,6 +46,7 @@ try
         });
     
     builder.Services.AddScoped<IAuthService, AuthService>();
+    builder.Services.AddScoped<IEmailService, EmailService>();
     builder.Services.AddScoped<ITodoService, TodoService>();
 
     builder.Services.AddOpenApi();

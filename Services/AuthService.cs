@@ -3,14 +3,11 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using MimeKit;
 using Todo.Api.Data;
 using Todo.Api.Dtos.Token;
 using Todo.Api.Dtos.User;
 using Todo.Api.Entities;
-using Todo.Api.Options;
 using Todo.Api.Services.Interfaces;
 
 namespace Todo.Api.Services;
@@ -19,15 +16,15 @@ public class AuthService : IAuthService
 {
     private readonly TodoDbContext _dbContext;
     private readonly IConfiguration _configuration;
-    private readonly SmtpOptions _options;
     private readonly ILogger<AuthService> _logger;
+    private readonly IEmailService _emailService;
     
-    public AuthService(TodoDbContext dbContext, IConfiguration configuration, IOptions<SmtpOptions> options, ILogger<AuthService> logger)
+    public AuthService(TodoDbContext dbContext, IConfiguration configuration, ILogger<AuthService> logger, IEmailService emailService)
     {
         _dbContext = dbContext;
         _configuration = configuration;
-        _options = options.Value;
         _logger = logger;
+        _emailService = emailService;
     }
     
     /// Register user and return user object
@@ -59,7 +56,7 @@ public class AuthService : IAuthService
         _logger.LogInformation("User {Username} created successfully", request.Username);
         
         var emailToken = CreateEmailVerificationToken(user);
-        await SendVerificationEmailAsync(user.Email, emailToken);
+        await _emailService.SendVerificationEmailAsync(user.Email, emailToken);
         
         var userResponse = new UserResponseDto
         {
@@ -145,39 +142,6 @@ public class AuthService : IAuthService
         }
     }
     
-    /// Send verification email to user
-    private async Task SendVerificationEmailAsync(string email, string emailToken)
-    {
-        try
-        {
-            var message = new MimeMessage();
-            message.From.Add(new MailboxAddress("TodoApp Support", _options.Email));
-            message.To.Add( new MailboxAddress(null, email));
-            message.Subject = "Email Verification";
-            var verificationLink = string.Format(_configuration["Frontend:VerificationUrl"]!, emailToken);
-            message.Body = new TextPart("html")
-            {
-                Text = $"<h1>Email Verification</h1>" +
-                       $"<p>Please click the link below to verify your email:</p>" +
-                       $"<a href=\"{verificationLink}\">Verify Email</a>" +
-                       $"<p>If you did not request this, please ignore this email.</p>"
-            };
-        
-            using var client = new MailKit.Net.Smtp.SmtpClient();
-            await client.ConnectAsync(_options.Host, _options.Port, MailKit.Security.SecureSocketOptions.StartTls);
-            await client.AuthenticateAsync(_options.Email, _options.Password);
-            await client.SendAsync(message);
-            await client.DisconnectAsync(true);
-        
-            _logger.LogInformation("Verification email sent to {Email}", email);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error sending verification email");
-            throw;
-        }
-    }
-    
     /// Login user and return access and refresh tokens
     public async Task<TokenResponseDto?> LoginAsync(UserLoginDto request)
     {
@@ -194,7 +158,7 @@ public class AuthService : IAuthService
             _logger.LogWarning("User with email {Email} has not verified their email", request.Email);
             
             var emailToken = CreateEmailVerificationToken(user);
-            await SendVerificationEmailAsync(user.Email, emailToken);
+            await _emailService.SendVerificationEmailAsync(user.Email, emailToken);
             
             return null;
         }
@@ -314,6 +278,12 @@ public class AuthService : IAuthService
             return false;
         }
         
+        if (request.NewPassword == request.OldPassword)
+        {
+            _logger.LogWarning("New password cannot be the same as the old password for user {Username}", user.Username);
+            return false;
+        }
+        
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
         _dbContext.Users.Update(user);
         await _dbContext.SaveChangesAsync();
@@ -339,9 +309,21 @@ public class AuthService : IAuthService
         }
         
         var token = CreatePasswordResetToken(user);
-        await SendPasswordResetEmailAsync(user.Email, token);
         
-        _logger.LogInformation("Password reset email sent to {Email}", email);
+        var passwordResetToken = new PasswordResetToken
+        {
+            UserId = user.Id,
+            Token = token,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddHours(1),
+            IsUsed = false
+        };
+        
+        _dbContext.PasswordResetTokens.Add(passwordResetToken);
+        await _dbContext.SaveChangesAsync();
+        
+        await _emailService.SendPasswordResetEmailAsync(user.Email, token);
+        
         return true;
     }
 
@@ -367,42 +349,45 @@ public class AuthService : IAuthService
         
         return new JwtSecurityTokenHandler().WriteToken(tokenDescriptor);
     }
-    
-    /// Send password reset email to user
-    private async Task SendPasswordResetEmailAsync(string email, string token)
-    {
-        try
-        {
-            var message = new MimeMessage();
-            message.From.Add(new MailboxAddress("TodoApp Support", _options.Email));
-            message.To.Add( new MailboxAddress(null, email));
-            message.Subject = "Password Reset";
-            var resetLink = string.Format(_configuration["Frontend:VerificationUrl"]!, token);
-            message.Body = new TextPart("html")
-            {
-                Text = $"<h1>Password Reset</h1>" +
-                       $"<p>Please click the link below to reset your password:</p>" +
-                       $"<a href=\"{resetLink}\">Reset Password</a>" +
-                       $"<p>If you did not request this, please ignore this email.</p>"
-            };
-        
-            using var client = new MailKit.Net.Smtp.SmtpClient();
-            await client.ConnectAsync(_options.Host, _options.Port, MailKit.Security.SecureSocketOptions.StartTls);
-            await client.AuthenticateAsync(_options.Email, _options.Password);
-            await client.SendAsync(message);
-            await client.DisconnectAsync(true);
-        
-            _logger.LogInformation("Password reset email sent to {Email}", email);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error sending password reset email to {Email}", email);
-            throw;
-        }
-    }
 
     /// Reset user password using token
     public async Task<bool> ResetPasswordAsync(string token, string newPassword)
+    {
+        var userId = await ValidatePasswordResetTokenAsync(token);
+        if (userId is null)
+        {
+            _logger.LogWarning("Invalid or expired password reset token for user {UserId}", userId);
+            return false;
+        }
+
+        var passwordResetToken = await GetPasswordResetTokenAsync(token);
+        if (passwordResetToken is null)
+        {
+            _logger.LogWarning("Invalid or expired password reset token for user {UserId}", userId);
+            return false;
+        }
+        
+        var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
+        if (user is null)
+        {
+            _logger.LogWarning("User with ID {UserId} does not exist", userId);
+            return false;
+        }
+        
+        if (!await UpdateUserPasswordAsync(user, newPassword))
+        {
+            _logger.LogWarning("Failed to update password for user {Username}", user.Username);
+            return false;
+        }
+        
+        await MarkPasswordResetTokenAsUsedAsync(passwordResetToken);
+
+        _logger.LogInformation("Password reset successfully for user {Username}", user.Username);
+        
+        return true;
+    }
+
+    private Task<string?> ValidatePasswordResetTokenAsync(string token)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.UTF8.GetBytes(_configuration["AppSettings:PasswordResetTokenKey"]!);
@@ -421,31 +406,49 @@ public class AuthService : IAuthService
                 ClockSkew = TimeSpan.Zero
             }, out SecurityToken validatedToken);
             
-            var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (userId is null)
-            {
-                _logger.LogWarning("User with ID {UserId} does not exist", userId);
-                return false;
-            }
-            
-            var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
-            if (user is null)
-            {
-                _logger.LogWarning("User with ID {UserId} does not exist", userId);
-                return false;
-            }
-            
-            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
-            await _dbContext.SaveChangesAsync();
-            
-            _logger.LogInformation("Password reset successfully for user {Username}", user.Username);
-            return true;
+            return Task.FromResult(principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Invalid password reset token");
+            return Task.FromResult<string?>(null);
+        }
+    }
+    
+    private async Task<PasswordResetToken?> GetPasswordResetTokenAsync(string token)
+    {
+        return await _dbContext.PasswordResetTokens
+            .FirstOrDefaultAsync(t => t.Token == token && !t.IsUsed && t.ExpiresAt > DateTime.UtcNow);
+    }
+
+    private async Task<bool> UpdateUserPasswordAsync(User user, string newPassword)
+    {
+        if (newPassword.Length < 8)
+        {
+            _logger.LogWarning("New password must be at least 8 characters long for user {Username}", user.Username);
             return false;
         }
+        
+        if (BCrypt.Net.BCrypt.Verify(newPassword, user.PasswordHash))
+        {
+            _logger.LogWarning("New password cannot be the same as the old password for user {Username}", user.Username);
+            return false;
+        }
+        
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        _dbContext.Users.Update(user);
+        await _dbContext.SaveChangesAsync();
+        
+        _logger.LogInformation("Password reset successfully for user {Username}", user.Username);
+        return true;
+    }
+
+    /// Mark password reset token as used
+    private async Task MarkPasswordResetTokenAsUsedAsync(PasswordResetToken token)
+    {
+        token.IsUsed = true;
+        _dbContext.PasswordResetTokens.Update(token);
+        await _dbContext.SaveChangesAsync();
     }
 
     /// Logout user by removing refresh token

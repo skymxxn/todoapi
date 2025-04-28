@@ -1,9 +1,15 @@
-﻿namespace Todo.Api.Entities;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace Todo.Api.Entities;
 
 public class PasswordResetToken
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public string Email { get; set; } = string.Empty;
+    [Key]
+    public Guid TokenId { get; set; }
+    public Guid UserId { get; set; }
     public string Token { get; set; } = string.Empty;
-    public DateTime Expiration { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime ExpiresAt { get; set; }
+    public bool IsUsed { get; set; } 
+    public User User { get; set; } = null!;
 }
