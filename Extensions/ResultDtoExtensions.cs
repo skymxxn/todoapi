@@ -1,11 +1,11 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Todo.Api.Dtos.Todo;
+using Todo.Api.Dtos.Common;
 
 namespace Todo.Api.Extensions;
 
-public static class TodoResultDtoExtensions
+public static class ResultDtoExtensions
 {
-    public static IActionResult ToActionResult<T>(this TodoResultDto<T> result)
+    public static IActionResult ToActionResult<T>(this ResultDto<T> result)
     {
         if (result.Success)
         {

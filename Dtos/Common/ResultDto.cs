@@ -1,8 +1,8 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 
-namespace Todo.Api.Dtos.Todo;
+namespace Todo.Api.Dtos.Common;
 
-public class TodoResultDto<T>
+public class ResultDto<T>
 {
     [MemberNotNullWhen(true, nameof(Data))]
     public bool Success { get; set; }
@@ -10,13 +10,13 @@ public class TodoResultDto<T>
     public T? Data { get; set; }
     public int StatusCode { get; set; }
     
-    public static TodoResultDto<T> Ok(T? data, int statusCode = 200) => new()
+    public static ResultDto<T> Ok(T? data, int statusCode = 200) => new()
     {
         Success = true,
         Data = data,
         StatusCode = statusCode
     };
-    public static TodoResultDto<T> Fail(string error, int statusCode = 400) => new()
+    public static ResultDto<T> Fail(string error, int statusCode = 400) => new()
     {
         Success = false,
         ErrorMessage = error,
