@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
-namespace Todo.Api.Entities;
+﻿namespace Todo.Api.Entities;
 
 public class User
 {
@@ -7,7 +6,7 @@ public class User
     public string Username { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? EmailVerificationToken { get; set; }
-    public bool IsEmailVerified { get; set; } = false;
+    public bool IsEmailVerified { get; set; }
     public string PasswordHash { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public DateTime Created { get; set; } = DateTime.UtcNow;

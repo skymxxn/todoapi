@@ -9,5 +9,13 @@ public class TodoDbContext(DbContextOptions<TodoDbContext> options) : DbContext(
     public DbSet<User> Users => Set<User>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(TodoDbContext).Assembly);
+        base.OnModelCreating(modelBuilder);
+    }
 }
+
+
 

@@ -1,6 +1,6 @@
 ﻿namespace Todo.Api.Dtos.Todo;
 
-public class TodoItemDto()
+public class TodoItemDto
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
