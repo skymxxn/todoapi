@@ -7,9 +7,7 @@ namespace Todo.Api.Services.Interfaces;
 public interface IAuthService
 {
     public Task<ResultDto<UserResponseDto>> RegisterAsync(UserRegistrationDto request);
-    public Task<ResultDto<string>> VerifyEmailTokenAsync(string token);
     public Task<ResultDto<TokenResponseDto>> LoginAsync(UserLoginDto request);
-    public Task<ResultDto<TokenResponseDto>> RefreshTokensAsync(RefreshTokenRequestDto request);
     public Task<ResultDto<string>> ChangePasswordAsync(Guid userId, ChangePasswordDto request);
     public Task<ResultDto<string>> RequestPasswordResetAsync(string email);
     public Task<ResultDto<string>> ResetPasswordAsync(string token, string newPassword);

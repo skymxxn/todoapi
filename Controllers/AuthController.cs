@@ -13,9 +13,11 @@ namespace Todo.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
-    public AuthController(IAuthService authService)
+    private readonly ITokenService _tokenService;
+    public AuthController(IAuthService authService, ITokenService tokenService)
     {
         _authService = authService;
+        _tokenService = tokenService;
     }
     
     [HttpPost("register")]
@@ -28,7 +30,7 @@ public class AuthController : ControllerBase
     [HttpGet("verify-email")]
     public async Task<IActionResult> VerifyEmail([FromQuery] string token)
     {
-        var result = await _authService.VerifyEmailTokenAsync(token);
+        var result = await _tokenService.VerifyEmailTokenAsync(token);
 
         return result.ToActionResult();
     }
@@ -43,7 +45,7 @@ public class AuthController : ControllerBase
     [HttpPost("refresh-token")]
     public async Task<IActionResult> RefreshToken(RefreshTokenRequestDto request)
     {
-        var result = await _authService.RefreshTokensAsync(request);
+        var result = await _tokenService.RefreshTokensAsync(request);
         return result.ToActionResult();
     }
 
