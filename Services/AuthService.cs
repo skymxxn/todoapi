@@ -36,7 +36,7 @@ public class AuthService : IAuthService
                                                || u.Email == request.Email))
         {
             _logger.LogWarning("User with username {Username} or email {Email} already exists", request.Username, request.Email);
-            return ResultDto<UserResponseDto>.Fail("User already exists", 400);
+            return ResultDto<UserResponseDto>.Fail("User already exists");
         }
         
         // Create new user
@@ -440,7 +440,6 @@ public class AuthService : IAuthService
         _dbContext.Users.Update(user);
         await _dbContext.SaveChangesAsync();
         
-        _logger.LogInformation("Password reset successfully for user {Username}", user.Username);
         return true;
     }
 
