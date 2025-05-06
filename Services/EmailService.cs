@@ -8,14 +8,14 @@ namespace Todo.Api.Services;
 public class EmailService : IEmailService
 {
     private readonly ILogger<EmailService> _logger;
-    private readonly SmtpOptions _options;
-    private readonly IConfiguration _configuration;
+    private readonly SmtpOptions _smtp;
+    private readonly FrontendOptions _frontend;
     
-    public EmailService(ILogger<EmailService> logger, IOptions<SmtpOptions> options, IConfiguration configuration)
+    public EmailService(ILogger<EmailService> logger, IOptions<SmtpOptions> smtp, IOptions<FrontendOptions> frontend)
     {
         _logger = logger;
-        _options = options.Value;
-        _configuration = configuration;
+        _smtp = smtp.Value;
+        _frontend = frontend.Value;
     }
 
     private async Task SendEmailAsync(string email, string emailToken, string subject, string body, string linkTemplate)
@@ -23,7 +23,7 @@ public class EmailService : IEmailService
         try
         {
             var message = new MimeMessage();
-            message.From.Add(new MailboxAddress("TodoApp Support", _options.Email));
+            message.From.Add(new MailboxAddress("TodoApp Support", _smtp.Email));
             message.To.Add( new MailboxAddress(null, email));
             message.Subject = subject;
             var link = string.Format(linkTemplate, emailToken);
@@ -36,8 +36,8 @@ public class EmailService : IEmailService
             };
         
             using var client = new MailKit.Net.Smtp.SmtpClient();
-            await client.ConnectAsync(_options.Host, _options.Port, MailKit.Security.SecureSocketOptions.StartTls);
-            await client.AuthenticateAsync(_options.Email, _options.Password);
+            await client.ConnectAsync(_smtp.Host, _smtp.Port, MailKit.Security.SecureSocketOptions.StartTls);
+            await client.AuthenticateAsync(_smtp.Email, _smtp.Password);
             await client.SendAsync(message);
             await client.DisconnectAsync(true);
             
@@ -58,7 +58,7 @@ public class EmailService : IEmailService
             emailToken, 
             "Email verification", 
             body, 
-            _configuration["Frontend:EmailVerificationUrl"]!
+            _frontend.VerificationUrl
         );
     }
     
@@ -70,7 +70,7 @@ public class EmailService : IEmailService
             token, 
             "Password reset", 
             body, 
-            _configuration["Frontend:ResetPasswordUrl"]!
+            _frontend.ResetPasswordUrl
         );
     }
 }

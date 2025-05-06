@@ -6,7 +6,6 @@ namespace Todo.Api.Services.Interfaces;
 
 public interface ITokenService
 {
-    public string CreateAccessToken(User user);
     public string CreateEmailVerificationToken(User user);
     public Task<ResultDto<string>> VerifyEmailTokenAsync(string token);
     public string CreatePasswordResetToken(User user);

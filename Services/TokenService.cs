@@ -2,11 +2,13 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Todo.Api.Data;
 using Todo.Api.Dtos.Common;
 using Todo.Api.Dtos.Token;
 using Todo.Api.Entities;
+using Todo.Api.Options;
 using Todo.Api.Services.Interfaces;
 
 namespace Todo.Api.Services;
@@ -14,13 +16,13 @@ namespace Todo.Api.Services;
 public class TokenService :ITokenService
 {
     private readonly ILogger<TokenService> _logger;
-    private readonly IConfiguration _configuration;
+    private readonly AppSettingsOptions _appSettings;
     private readonly TodoDbContext _dbContext;
     
-    public TokenService(ILogger<TokenService> logger, IConfiguration configuration, TodoDbContext dbContext)
+    public TokenService(ILogger<TokenService> logger, IOptions<AppSettingsOptions> appSettings, TodoDbContext dbContext)
     {
         _logger = logger;
-        _configuration = configuration;
+        _appSettings = appSettings.Value;
         _dbContext = dbContext;
     }
     
@@ -30,8 +32,8 @@ public class TokenService :ITokenService
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512);
         
         var tokenDescriptor = new JwtSecurityToken(
-            issuer: _configuration["AppSettings:Issuer"],
-            audience: _configuration["AppSettings:Audience"],
+            issuer: _appSettings.Issuer,
+            audience: _appSettings.Audience,
             claims: claims,
             expires: DateTime.UtcNow.AddMinutes(expirationInMinutes),
             signingCredentials: creds
@@ -49,8 +51,8 @@ public class TokenService :ITokenService
             new Claim(ClaimTypes.Role, user.Role)
         };
         
-        var secretKey = _configuration["AppSettings:AccessTokenKey"]!;
-        var expirationInMinutes = int.Parse(_configuration["AppSettings:AccessTokenExpirationInMinutes"]!);
+        var secretKey = _appSettings.AccessTokenKey;
+        var expirationInMinutes = _appSettings.AccessTokenExpirationInMinutes;
         
         return CreateToken(claims, secretKey, expirationInMinutes);
     }
@@ -63,8 +65,8 @@ public class TokenService :ITokenService
             new Claim(ClaimTypes.Email, user.Email)
         };
         
-        var secretKey = _configuration["AppSettings:EmailVerificationTokenKey"]!;
-        var expirationInMinutes = int.Parse(_configuration["AppSettings:EmailVerificationTokenExpirationInMinutes"]!);
+        var secretKey = _appSettings.EmailVerificationTokenKey;
+        var expirationInMinutes = _appSettings.EmailVerificationTokenExpirationInMinutes;
         
         return CreateToken(claims, secretKey, expirationInMinutes);
     }
@@ -76,9 +78,9 @@ public class TokenService :ITokenService
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
             ValidateIssuer = true,
-            ValidIssuer = _configuration["AppSettings:Issuer"],
+            ValidIssuer = _appSettings.Issuer,
             ValidateAudience = true,
-            ValidAudience = _configuration["AppSettings:Audience"],
+            ValidAudience = _appSettings.Audience,
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
@@ -88,9 +90,9 @@ public class TokenService :ITokenService
     public async Task<ResultDto<string>> VerifyEmailTokenAsync(string token)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
-        var secretKey = _configuration["AppSettings:EmailVerificationTokenKey"]!;
+        var secretKey = _appSettings.EmailVerificationTokenKey;
 
-        var principal = tokenHandler.ValidateToken(token, GetTokenValidationParameters(secretKey), out SecurityToken validatedToken);
+        var principal = tokenHandler.ValidateToken(token, GetTokenValidationParameters(secretKey), out _);
             
         var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId is null)
@@ -127,8 +129,8 @@ public class TokenService :ITokenService
             new Claim(ClaimTypes.Email, user.Email)
         };
         
-        var secretKey = _configuration["AppSettings:PasswordResetTokenKey"]!;
-        var expirationInMinutes = int.Parse(_configuration["AppSettings:PasswordResetTokenExpirationInMinutes"]!);
+        var secretKey = _appSettings.PasswordResetTokenKey;
+        var expirationInMinutes = _appSettings.PasswordResetTokenExpirationInMinutes;
         
         return CreateToken(claims, secretKey, expirationInMinutes);
     }
@@ -136,8 +138,8 @@ public class TokenService :ITokenService
     public async Task<ResultDto<Guid>> ValidatePasswordResetTokenAsync(string token)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
-        var secretKey = _configuration["AppSettings:PasswordResetTokenKey"]!;
-        var principal = tokenHandler.ValidateToken(token, GetTokenValidationParameters(secretKey), out SecurityToken validatedToken);
+        var secretKey = _appSettings.PasswordResetTokenKey;
+        var principal = tokenHandler.ValidateToken(token, GetTokenValidationParameters(secretKey), out _);
 
         var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId is null)
@@ -190,7 +192,7 @@ public class TokenService :ITokenService
         if (user.RefreshToken != refreshToken 
             || user.RefreshTokenExpiryTime < DateTime.UtcNow)
         {
-            _logger.LogError("Invalid refresh token for user {Username}", user.Username);
+            _logger.LogError("Invalid refresh token for user with ID {UserId}", userId);
             return ResultDto<User>.Fail("Invalid refresh token", 401);
         }
         
@@ -213,12 +215,10 @@ public class TokenService :ITokenService
     public async Task<ResultDto<TokenResponseDto>> RefreshTokensAsync(RefreshTokenRequestDto request)
     {
         var user = await ValidateRefreshTokenAsync(request.UserId, request.RefreshToken);
-        if (!user.Success)
-        {
-            _logger.LogWarning("Invalid refresh token for user {UserId}", request.UserId);
-            return ResultDto<TokenResponseDto>.Fail(user.ErrorMessage!, user.StatusCode);
-        }
+        if (user.Success) return ResultDto<TokenResponseDto>.Ok(await CreateTokenResponse(user.Data));
         
-        return ResultDto<TokenResponseDto>.Ok(await CreateTokenResponse(user.Data));
+        _logger.LogWarning("Invalid refresh token for user {UserId}", request.UserId);
+        var errorMessage = user.ErrorMessage ?? "Invalid refresh token";
+        return ResultDto<TokenResponseDto>.Fail(errorMessage, user.StatusCode);
     }
 }
