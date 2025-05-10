@@ -38,13 +38,15 @@ public class TodosController : ControllerBase
     
     [HttpGet]
     public async Task<ActionResult<List<TodoItemDto>>> Get(
-        [FromQuery] string sortBy = "Name", 
-        [FromQuery] string sortOrder = "asc", 
+        [FromQuery] string sortBy = "CreatedAt", 
+        [FromQuery] string sortOrder = "desc", 
         [FromQuery] string? nameFilter = null,
         [FromQuery] bool? isCompleted = null, 
         [FromQuery] int? categoryId = null,
         [FromQuery] DateTime? startDate = null,
-        [FromQuery] DateTime? endDate = null)
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25)
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();
@@ -58,7 +60,9 @@ public class TodosController : ControllerBase
                 isCompleted,
                 categoryId,
                 startDate,
-                endDate);
+                endDate,
+                page,
+                pageSize);
         
         return Ok(todos.Adapt<List<TodoItemDto>>());
     }

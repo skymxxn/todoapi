@@ -22,9 +22,30 @@ namespace Todo.Api.Services
         public async Task<List<TodoItem>> GetFilteredAndSortedTodos(
             Guid userId, string sortBy, string sortOrder,
             string? nameFilter, bool? isCompleted, int? categoryId,
-            DateTime? startDate, DateTime? endDate
+            DateTime? startDate, DateTime? endDate,
+            int page, int pageSize
             )
         {
+            if (page < 1)
+            {
+                _logger.LogWarning("Invalid page number {PageNumber}. Setting to default value 1.", page);
+                page = 1;
+            }
+            
+            if (pageSize < 1)
+            {
+                _logger.LogWarning("Invalid page size {PageSize}. Setting to default value 25.", pageSize);
+                pageSize = 25;
+            }
+            
+            const int maxPageSize = 100;
+            
+            if (pageSize > maxPageSize)
+            {
+                _logger.LogWarning("Page size {PageSize} exceeds maximum limit of {MaxPageSize}. Setting to maximum.", pageSize, maxPageSize);
+                pageSize = maxPageSize;
+            }
+            
             var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.Id == userId);
 
@@ -78,11 +99,15 @@ namespace Todo.Api.Services
                     break;
             }
 
-            _logger.LogInformation("Fetching todos for user {Username} with filters: Name={NameFilter}, IsCompleted={IsCompleted}, CategoryId={CategoryId}, StartDate={StartDate}, EndDate={EndDate}",
-                user.Username, nameFilter, isCompleted, categoryId, startDate, endDate);
+            _logger.LogInformation("Fetching todos for user {Username}", user.Username);
             _logger.LogInformation("Sorting todos by {SortBy} in {SortOrder} order", sortBy, sortOrder);
 
-            var result = await query.ToListAsync();
+            
+            var result = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .AsNoTracking()
+                .ToListAsync();
             
             return result;
         }
