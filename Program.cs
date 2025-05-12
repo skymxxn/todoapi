@@ -1,6 +1,7 @@
 using Scalar.AspNetCore;
 using Serilog;
 using Todo.Api.Extensions;
+using Todo.Api.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +21,8 @@ builder.Services
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddMemoryCache();
+
 
 var app = builder.Build();
 
@@ -30,6 +33,8 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
     app.MapOpenApi();
 }
+
+app.UseGlobalExceptionHandler();
 
 app.UseHttpsRedirection();
 

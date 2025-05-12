@@ -1,5 +1,6 @@
 using Mapster;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Todo.Api.Data;
 using Todo.Api.Dtos.Common;
 using Todo.Api.Dtos.Todo;
@@ -12,14 +13,29 @@ namespace Todo.Api.Services
     {
         private readonly TodoDbContext _context;
         private readonly ILogger<TodoService> _logger;
+        private readonly IMemoryCache _cache;
 
-        public TodoService(TodoDbContext context, ILogger<TodoService> logger)
+        public TodoService(TodoDbContext context, ILogger<TodoService> logger, IMemoryCache cache)
         {
             _context = context;
             _logger = logger;
+            _cache = cache;
         }
         
-        public async Task<List<TodoItem>> GetFilteredAndSortedTodos(
+        private async Task<User?> GetUserAsync(Guid userId)
+        {
+            return await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        }
+        
+        private async Task<string?> GetOwnerAsync(Guid ownerId)
+        {
+            return await _context.Users
+                .Where(u => u.Id == ownerId)
+                .Select(u => u.Username)
+                .FirstOrDefaultAsync();
+        }
+        
+        public async Task<List<TodoItem>?> GetFilteredAndSortedTodos(
             Guid userId, string sortBy, string sortOrder,
             string? nameFilter, bool? isCompleted, int? categoryId,
             DateTime? startDate, DateTime? endDate,
@@ -46,8 +62,13 @@ namespace Todo.Api.Services
                 pageSize = maxPageSize;
             }
             
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Id == userId);
+            var cacheKey = $"Todos_{userId}_{sortBy}_{sortOrder}_{nameFilter}_{isCompleted}_{categoryId}_{startDate}_{endDate}_{page}_{pageSize}";
+            if (_cache.TryGetValue(cacheKey, out List<TodoItem>? cachedTodos))
+            {
+                return cachedTodos;
+            }
+
+            var user = await GetUserAsync(userId);
 
             if (user == null)
             {
@@ -109,13 +130,17 @@ namespace Todo.Api.Services
                 .AsNoTracking()
                 .ToListAsync();
             
+            _cache.Set(cacheKey, result, new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+            });
+            
             return result;
         }
         
         public async Task<ResultDto<TodoItemDto>> GetTodoByIdAsync(int id, Guid userId)
         {
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Id == userId);
+            var user = await GetUserAsync(userId);
             if (user == null)
             {
                 _logger.LogWarning("User {Username} not found", userId);
@@ -135,10 +160,9 @@ namespace Todo.Api.Services
 
             if (todoItem.UserId != userId)
             {
-                var owner = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Id == todoItem.UserId);
+                var ownerUsername = await GetOwnerAsync(userId);
                 
-                _logger.LogWarning("User {Username} attempted to access Todo with ID {TodoId} without permission. This Todo belongs to user {OwnerUsername}.", user.Username, id, owner?.Username);
+                _logger.LogWarning("User {Username} attempted to access Todo with ID {TodoId} without permission. This Todo belongs to user {OwnerUsername}.", user.Username, id, ownerUsername);
                 return ResultDto<TodoItemDto>.Fail("Access denied.", 403);
             }
 
@@ -149,8 +173,7 @@ namespace Todo.Api.Services
         
         public async Task<ResultDto<TodoItemDto>> CreateTodoAsync(CreateTodoItemDto createDto, Guid userId)
         {
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Id == userId);
+            var user = await GetUserAsync(userId);
             
             if (user is null)
             {
@@ -176,6 +199,8 @@ namespace Todo.Api.Services
             _context.TodoItems.Add(todoItem);
             await _context.SaveChangesAsync();
             
+            _cache.Remove($"Todos_{userId}_");
+            
             _logger.LogInformation("Todo successfully created with ID {TodoId} by user {Username}", todoItem.Id, user.Username);
             
             await _context.Entry(todoItem).Reference(t => t.Category).LoadAsync();
@@ -186,8 +211,7 @@ namespace Todo.Api.Services
 
         public async Task<ResultDto<TodoItemDto>> UpdateTodoAsync(int id, UpdateTodoItemDto updateDto, Guid userId)
         {
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Id == userId);
+            var user = await GetUserAsync(userId);
 
             if (user is null)
             {
@@ -204,10 +228,9 @@ namespace Todo.Api.Services
 
             if (todoItem.UserId != userId)
             {
-                var owner = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Id == todoItem.UserId);
+                var ownerUsername = await GetOwnerAsync(userId);
                 
-                _logger.LogWarning("User {Username} attempted to update Todo with ID {TodoId} without permission. This Todo belongs to user {OwnerUsername}.", user.Username, id, owner?.Username);
+                _logger.LogWarning("User {Username} attempted to update Todo with ID {TodoId} without permission. This Todo belongs to user {OwnerUsername}.", user.Username, id, ownerUsername);
                 return ResultDto<TodoItemDto>.Fail("Access denied.", 403);
             }
             
@@ -226,6 +249,8 @@ namespace Todo.Api.Services
             updateDto.Adapt(todoItem);
             await _context.SaveChangesAsync();
             
+            _cache.Remove($"Todos_{userId}_");
+            
             _logger.LogInformation("Todo with ID {TodoId} successfully updated by user {Username}.", id, user.Username);
             
             return ResultDto<TodoItemDto>.Ok(null, 204);
@@ -233,8 +258,7 @@ namespace Todo.Api.Services
         
         public async Task<ResultDto<TodoItemDto>> DeleteTodoAsync(int id, Guid userId)
         {
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Id == userId);
+            var user = await GetUserAsync(userId);
 
             if (user is null)
             {
@@ -251,15 +275,16 @@ namespace Todo.Api.Services
 
             if (todoItem.UserId != userId)
             {
-                var owner = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Id == todoItem.UserId);
+                var ownerUsername = await GetOwnerAsync(userId);
                 
-                _logger.LogWarning("User {Username} attempted to update Todo with ID {TodoId} without permission. This Todo belongs to user {OwnerUsername}.", user.Username, id, owner?.Username);
+                _logger.LogWarning("User {Username} attempted to update Todo with ID {TodoId} without permission. This Todo belongs to user {OwnerUsername}.", user.Username, id, ownerUsername);
                 return ResultDto<TodoItemDto>.Fail("Access denied.", 403);
             }
             
             _context.TodoItems.Remove(todoItem);
             await _context.SaveChangesAsync();
+            
+            _cache.Remove($"Todos_{userId}_");
             
             _logger.LogInformation("Todo with ID {TodoId} successfully deleted by user {Username}.", id, user.Username);
             
