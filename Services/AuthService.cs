@@ -67,7 +67,7 @@ public class AuthService : IAuthService
         };
         
         // Return user response
-        return ResultDto<UserResponseDto>.Ok(userResponse, 201);
+        return ResultDto<UserResponseDto>.Ok(userResponse, message: "User registered successfully", 201);
     }
     
     
@@ -97,8 +97,9 @@ public class AuthService : IAuthService
         _dbContext.Users.Update(user);
         await _dbContext.SaveChangesAsync();
         
-        _logger.LogInformation("User {Username} with email {Email} logged in successfully", user.Username, request.Email);
-        return ResultDto<TokenResponseDto>.Ok(await _tokenService.CreateTokenResponse(user));
+        _logger.LogInformation("User {Username} logged in with email {Email}", user.Username, request.Email);
+        return ResultDto<TokenResponseDto>.Ok(
+            await _tokenService.CreateTokenResponse(user), message: "Login successful");
     }
     
     
@@ -130,7 +131,7 @@ public class AuthService : IAuthService
         await _dbContext.SaveChangesAsync();
         
         _logger.LogInformation("Password changed successfully for user {Username}", user.Username);
-        return ResultDto<string>.Ok("Password changed successfully");
+        return ResultDto<string>.Ok(message: "Password changed successfully");
     }
 
     /// Request password reset and send email with reset link
@@ -165,7 +166,7 @@ public class AuthService : IAuthService
         
         await _emailService.SendPasswordResetEmailAsync(user.Email, token);
         
-        return ResultDto<string>.Ok("Password reset email sent successfully");
+        return ResultDto<string>.Ok(message: "Password reset email sent successfully");
     }
     
 
@@ -198,7 +199,7 @@ public class AuthService : IAuthService
 
         _logger.LogInformation("Password reset successfully for user {Username}", user.Username);
         
-        return ResultDto<string>.Ok("Password reset successfully");
+        return ResultDto<string>.Ok(message: "Password reset successfully");
     }
     
     private async Task<PasswordResetToken?> GetPasswordResetTokenAsync(string token)
@@ -252,7 +253,7 @@ public class AuthService : IAuthService
         _dbContext.Users.Update(user);
         await _dbContext.SaveChangesAsync();
         
-        _logger.LogInformation("User {Username} logged out successfully", user.Username);
-        return ResultDto<string>.Ok("User logged out successfully");
+        _logger.LogInformation("User {Username} logged out", user.Username);
+        return ResultDto<string>.Ok(message: "Logout successful");
     }
 }

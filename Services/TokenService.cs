@@ -97,7 +97,7 @@ public class TokenService :ITokenService
         var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId is null)
         {
-            _logger.LogWarning("Invalid token: User ID {UserId} not found", userId);
+            _logger.LogWarning("Invalid token: User ID not found in token claims");
             return ResultDto<string>.Fail("Invalid token");
         }
             
@@ -118,7 +118,7 @@ public class TokenService :ITokenService
         await _dbContext.SaveChangesAsync();
             
         _logger.LogInformation("User {Username} verified email successfully", user.Username);
-        return ResultDto<string>.Ok("Email verified successfully");
+        return ResultDto<string>.Ok(message: "Email verified successfully");
     }
 
     public string CreatePasswordResetToken(User user)
@@ -144,7 +144,7 @@ public class TokenService :ITokenService
         var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId is null)
         {
-            _logger.LogWarning("Invalid token: User ID {UserId} not found", userId);
+            _logger.LogWarning("Invalid token: User ID not found in token claims");
             return await Task.FromResult(ResultDto<Guid>.Fail("Invalid token"));
         }
         
@@ -155,7 +155,7 @@ public class TokenService :ITokenService
             return await Task.FromResult(ResultDto<Guid>.Fail("User not found", 404));
         }
         
-        return await Task.FromResult(ResultDto<Guid>.Ok(Guid.Parse(userId)));
+        return ResultDto<Guid>.Ok(Guid.Parse(userId), message: "Token is valid");
     }
     
     /// Generate a new refresh token
@@ -196,7 +196,7 @@ public class TokenService :ITokenService
             return ResultDto<User>.Fail("Invalid refresh token", 401);
         }
         
-        return ResultDto<User>.Ok(user);
+        return ResultDto<User>.Ok(user, message: "Refresh token is valid");
     }
     
     /// Create token response with access and refresh tokens
@@ -214,11 +214,16 @@ public class TokenService :ITokenService
     /// Validate refresh token and generate new access and refresh tokens
     public async Task<ResultDto<TokenResponseDto>> RefreshTokensAsync(RefreshTokenRequestDto request)
     {
-        var user = await ValidateRefreshTokenAsync(request.UserId, request.RefreshToken);
-        if (user.Success) return ResultDto<TokenResponseDto>.Ok(await CreateTokenResponse(user.Data));
-        
-        _logger.LogWarning("Invalid refresh token for user {UserId}", request.UserId);
-        var errorMessage = user.ErrorMessage ?? "Invalid refresh token";
-        return ResultDto<TokenResponseDto>.Fail(errorMessage, user.StatusCode);
+        var validationResult = await ValidateRefreshTokenAsync(request.UserId, request.RefreshToken);
+
+        if (validationResult is not { Status: "Ok", Data: not null })
+        {
+            _logger.LogWarning("Refresh token validation failed for user {UserId}", request.UserId);
+            var message = validationResult.Message ?? "Invalid refresh token";
+            return ResultDto<TokenResponseDto>.Fail(message, validationResult.StatusCode);
+        }
+
+        var tokenResponse = await CreateTokenResponse(validationResult.Data);
+        return ResultDto<TokenResponseDto>.Ok(tokenResponse, message: "Tokens refreshed successfully");
     }
 }

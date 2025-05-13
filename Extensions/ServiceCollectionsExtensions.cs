@@ -1,8 +1,10 @@
 ﻿using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Todo.Api.Data;
+using Todo.Api.Dtos.Common;
 using Todo.Api.Options;
 using Todo.Api.Services;
 using Todo.Api.Services.Interfaces;
@@ -59,6 +61,31 @@ public static class ServiceCollectionsExtensions
                     IssuerSigningKey = new SymmetricSecurityKey(
                         Encoding.UTF8.GetBytes(appSettings.AccessTokenKey)),
                     ValidateIssuerSigningKey = true,
+                };
+
+                options.Events = new JwtBearerEvents
+                {
+                    OnChallenge = context =>
+                    {
+                        context.HandleResponse();
+                        context.Response.StatusCode = 401;
+                        context.Response.ContentType = "application/json";
+                        var result = ResultDto<string>.Fail(
+                            "Unauthorized. You need to log in.",
+                            401);
+                        var json = JsonSerializer.Serialize(result);
+                        return context.Response.WriteAsync(json);
+                    },
+                    OnForbidden = context =>
+                    {
+                        context.Response.StatusCode = 403;
+                        context.Response.ContentType = "application/json";
+                        var result = ResultDto<string>.Fail(
+                            "Forbidden. You do not have permission to access this resource.",
+                            403);
+                        var json = JsonSerializer.Serialize(result);
+                        return context.Response.WriteAsync(json);
+                    }
                 };
             });
         

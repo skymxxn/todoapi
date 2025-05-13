@@ -27,14 +27,6 @@ namespace Todo.Api.Services
             return await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
         }
         
-        private async Task<string?> GetOwnerAsync(Guid ownerId)
-        {
-            return await _context.Users
-                .Where(u => u.Id == ownerId)
-                .Select(u => u.Username)
-                .FirstOrDefaultAsync();
-        }
-        
         public async Task<List<TodoItem>?> GetFilteredAndSortedTodos(
             Guid userId, string sortBy, string sortOrder,
             string? nameFilter, bool? isCompleted, int? categoryId,
@@ -160,15 +152,14 @@ namespace Todo.Api.Services
 
             if (todoItem.UserId != userId)
             {
-                var ownerUsername = await GetOwnerAsync(userId);
-                
-                _logger.LogWarning("User {Username} attempted to access Todo with ID {TodoId} without permission. This Todo belongs to user {OwnerUsername}.", user.Username, id, ownerUsername);
+                _logger.LogWarning("User {Username} attempted to access Todo with ID {TodoId} without permission.", user.Username, id);
                 return ResultDto<TodoItemDto>.Fail("Access denied.", 403);
             }
 
             _logger.LogInformation("Todo with ID {TodoId} found for user {Username}", id, user.Username);
 
-            return ResultDto<TodoItemDto>.Ok(todoItem.Adapt<TodoItemDto>());
+            return ResultDto<TodoItemDto>.Ok(
+                todoItem.Adapt<TodoItemDto>(), message: "Todo found successfully");
         }
         
         public async Task<ResultDto<TodoItemDto>> CreateTodoAsync(CreateTodoItemDto createDto, Guid userId)
@@ -206,7 +197,8 @@ namespace Todo.Api.Services
             await _context.Entry(todoItem).Reference(t => t.Category).LoadAsync();
             
             var resultDto = todoItem.Adapt<TodoItemDto>();
-            return ResultDto<TodoItemDto>.Ok(resultDto, 201);
+            return ResultDto<TodoItemDto>.Ok(
+                resultDto, message: "Todo created successfully", 201);
         }
 
         public async Task<ResultDto<TodoItemDto>> UpdateTodoAsync(int id, UpdateTodoItemDto updateDto, Guid userId)
@@ -228,9 +220,7 @@ namespace Todo.Api.Services
 
             if (todoItem.UserId != userId)
             {
-                var ownerUsername = await GetOwnerAsync(userId);
-                
-                _logger.LogWarning("User {Username} attempted to update Todo with ID {TodoId} without permission. This Todo belongs to user {OwnerUsername}.", user.Username, id, ownerUsername);
+                _logger.LogWarning("User {Username} attempted to update Todo with ID {TodoId} without permission.", user.Username, id);
                 return ResultDto<TodoItemDto>.Fail("Access denied.", 403);
             }
             
@@ -253,7 +243,7 @@ namespace Todo.Api.Services
             
             _logger.LogInformation("Todo with ID {TodoId} successfully updated by user {Username}.", id, user.Username);
             
-            return ResultDto<TodoItemDto>.Ok(null, 204);
+            return ResultDto<TodoItemDto>.Ok(message: "Todo updated successfully", 204);
         }
         
         public async Task<ResultDto<TodoItemDto>> DeleteTodoAsync(int id, Guid userId)
@@ -270,14 +260,12 @@ namespace Todo.Api.Services
             if (todoItem == null)
             {
                 _logger.LogWarning("Todo with ID {TodoId} not found.", id);
-                return ResultDto<TodoItemDto>.Fail("Todo not found.", 404);
+                return ResultDto<TodoItemDto>.Fail($"Todo with ID {id} not found.", 404);
             }
 
             if (todoItem.UserId != userId)
             {
-                var ownerUsername = await GetOwnerAsync(userId);
-                
-                _logger.LogWarning("User {Username} attempted to update Todo with ID {TodoId} without permission. This Todo belongs to user {OwnerUsername}.", user.Username, id, ownerUsername);
+                _logger.LogWarning("User {Username} attempted to update Todo with ID {TodoId} without permission.", user.Username, id);
                 return ResultDto<TodoItemDto>.Fail("Access denied.", 403);
             }
             
@@ -288,7 +276,7 @@ namespace Todo.Api.Services
             
             _logger.LogInformation("Todo with ID {TodoId} successfully deleted by user {Username}.", id, user.Username);
             
-            return ResultDto<TodoItemDto>.Ok(null, 204);
+            return ResultDto<TodoItemDto>.Ok(message: "Todo deleted successfully", 204);
         }
     }
 }

@@ -5,21 +5,29 @@ namespace Todo.Api.Dtos.Common;
 public class ResultDto<T>
 {
     [MemberNotNullWhen(true, nameof(Data))]
-    public bool Success { get; set; }
-    public string? ErrorMessage { get; set; }
+    public string? Status { get; set; }
+    public string? Message { get; set; }
     public T? Data { get; set; }
     public int StatusCode { get; set; }
     
-    public static ResultDto<T> Ok(T? data, int statusCode = 200) => new()
+    public static ResultDto<T> Ok(string message = "Everything is ok", int statusCode = 200) => new()
     {
-        Success = true,
-        Data = data,
+        Status = "Ok",
+        Message = message,
         StatusCode = statusCode
     };
-    public static ResultDto<T> Fail(string error, int statusCode = 400) => new()
+    
+    public static ResultDto<T> Ok(T? data, string message = "Everything is ok", int statusCode = 200) => new()
     {
-        Success = false,
-        ErrorMessage = error,
+        Status = "Ok",
+        Data = data,
+        Message = message,
+        StatusCode = statusCode
+    };
+    public static ResultDto<T> Fail(string error = "Something went wrong", int statusCode = 400) => new()
+    {
+        Status = "Fail",
+        Message = error,
         StatusCode = statusCode
     };
     
