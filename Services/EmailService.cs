@@ -61,7 +61,19 @@ public class EmailService : IEmailService
             _frontend.VerificationUrl
         );
     }
-    
+
+    public Task SendEmailChangeEmailAsync(string email, string token)
+    {
+        const string body = "Please click the link below to change your email address:";
+        return SendEmailAsync(
+            email, 
+            token, 
+            "Email change", 
+            body, 
+            _frontend.ChangeEmailUrl
+        );
+    }
+
     public async Task SendPasswordResetEmailAsync(string email, string token)
     {
         const string body = "Please click the link below to reset your password:";

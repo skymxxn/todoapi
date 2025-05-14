@@ -3,5 +3,6 @@
 public interface IEmailService
 {
     public Task SendVerificationEmailAsync(string email, string token);
+    public Task SendEmailChangeEmailAsync(string email, string token);
     public Task SendPasswordResetEmailAsync(string email, string token);
 }

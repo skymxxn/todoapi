@@ -10,9 +10,9 @@ namespace Todo.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class UsersController(TodoDbContext dbContext) : Controller
+public class AdminController(TodoDbContext dbContext) : Controller
 {
-    [HttpGet]
+    [HttpGet("get-users")]
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<List<User>>> GetUsers()
     {

@@ -1,9 +1,11 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Todo.Api.Data;
 using Todo.Api.Dtos.Token;
 using Todo.Api.Dtos.User;
 using Todo.Api.Dtos.Common;
 using Todo.Api.Entities;
+using Todo.Api.Options;
 using Todo.Api.Services.Interfaces;
 
 namespace Todo.Api.Services;
@@ -11,15 +13,15 @@ namespace Todo.Api.Services;
 public class AuthService : IAuthService
 {
     private readonly TodoDbContext _dbContext;
-    private readonly IConfiguration _configuration;
+    private readonly AppSettingsOptions _appSettings;
     private readonly ILogger<AuthService> _logger;
     private readonly IEmailService _emailService;
     private readonly ITokenService _tokenService;
     
-    public AuthService(TodoDbContext dbContext, IConfiguration configuration, ILogger<AuthService> logger, IEmailService emailService, ITokenService tokenService)
+    public AuthService(TodoDbContext dbContext, IOptions<AppSettingsOptions> appSettings, ILogger<AuthService> logger, IEmailService emailService, ITokenService tokenService)
     {
         _dbContext = dbContext;
-        _configuration = configuration;
+        _appSettings = appSettings.Value;
         _logger = logger;
         _emailService = emailService;
         _tokenService = tokenService;
@@ -63,7 +65,8 @@ public class AuthService : IAuthService
             Email = user.Email,
             IsEmailVerified = user.IsEmailVerified,
             Role = user.Role,
-            Created = user.Created
+            Created = user.Created,
+            LastLogin = user.LastLogin
         };
         
         // Return user response
@@ -101,38 +104,6 @@ public class AuthService : IAuthService
         return ResultDto<TokenResponseDto>.Ok(
             await _tokenService.CreateTokenResponse(user), message: "Login successful");
     }
-    
-    
-
-    /// Change user password
-    public async Task<ResultDto<string>> ChangePasswordAsync(Guid userId,ChangePasswordDto request)
-    {
-        var user = await _dbContext.Users.FindAsync(userId);
-        if (user is null)
-        {
-            _logger.LogWarning("User with ID {UserId} does not exist", userId);
-            return ResultDto<string>.Fail("User not found", 404);
-        }
-        
-        if (!BCrypt.Net.BCrypt.Verify(request.OldPassword, user.PasswordHash))
-        {
-            _logger.LogWarning("Invalid old password for user {Username}", user.Username);
-            return ResultDto<string>.Fail("Invalid old password", 401);
-        }
-        
-        if (request.NewPassword == request.OldPassword)
-        {
-            _logger.LogWarning("New password cannot be the same as the old password for user {Username}", user.Username);
-            return ResultDto<string>.Fail("New password cannot be the same as the old password");
-        }
-        
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-        _dbContext.Users.Update(user);
-        await _dbContext.SaveChangesAsync();
-        
-        _logger.LogInformation("Password changed successfully for user {Username}", user.Username);
-        return ResultDto<string>.Ok(message: "Password changed successfully");
-    }
 
     /// Request password reset and send email with reset link
     public async Task<ResultDto<string>> RequestPasswordResetAsync(string email)
@@ -157,7 +128,7 @@ public class AuthService : IAuthService
             UserId = user.Id,
             Token = token,
             CreatedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(_configuration.GetValue<int>("AppSettings:PasswordResetTokenExpirationInMinutes")),
+            ExpiresAt = DateTime.UtcNow.AddMinutes(_appSettings.PasswordResetTokenExpirationInMinutes),
             IsUsed = false
         };
         
@@ -173,22 +144,27 @@ public class AuthService : IAuthService
     /// Reset user password using token
     public async Task<ResultDto<string>> ResetPasswordAsync(string token, string newPassword)
     {
-        var userId = await _tokenService.ValidatePasswordResetTokenAsync(token);
+        var isTokenValid = await _tokenService.ValidatePasswordResetTokenAsync(token);
+        if (!isTokenValid.Data)
+        {
+            _logger.LogWarning("Invalid or expired password reset token");
+            return ResultDto<string>.Fail("Invalid or expired password reset token");
+        }
 
         var passwordResetToken = await GetPasswordResetTokenAsync(token);
         if (passwordResetToken is null)
         {
-            _logger.LogWarning("Invalid or expired password reset token for user {UserId}", userId);
+            _logger.LogWarning("Password reset token not found or already used");
             return ResultDto<string>.Fail("Invalid or expired password reset token");
         }
         
         var user = await _dbContext.Users.FindAsync(passwordResetToken.UserId);
         if (user is null)
         {
-            _logger.LogWarning("User with ID {UserId} does not exist", userId);
+            _logger.LogWarning("User with ID {UserId} does not exist", passwordResetToken.UserId);
             return ResultDto<string>.Fail("User not found", 404);
         }
-        
+
         if (!await UpdateUserPasswordAsync(user, newPassword))
         {
             _logger.LogWarning("Failed to update password for user {Username}", user.Username);
@@ -240,7 +216,7 @@ public class AuthService : IAuthService
     /// Logout user by removing refresh token
     public async Task<ResultDto<string>> LogoutAsync(Guid userId)
     {
-        var user = await  _dbContext.Users.FindAsync(userId);
+        var user = await _dbContext.Users.FindAsync(userId);
         if (user is null)
         {
             _logger.LogWarning("User with ID {UserId} does not exist", userId);

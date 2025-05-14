@@ -4,5 +4,6 @@ public class FrontendOptions
 {
     public const string SectionName = "Frontend";
     public required string VerificationUrl { get; set; }
+    public required string ChangeEmailUrl { get; set; }
     public required string ResetPasswordUrl { get; set; }
 }

@@ -1,10 +1,8 @@
-﻿using System.Security.Claims;
-using Mapster;
+﻿using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Todo.Api.Services.Interfaces;
 using Todo.Api.Dtos.Todo;
-using Todo.Api.Entities;
 using Todo.Api.Extensions;
 
 namespace Todo.Api.Controllers;
@@ -20,22 +18,6 @@ public class TodosController : ControllerBase
     {
         _todoService = todoService;
     }
-
-    private static Guid? GetUserId(ClaimsPrincipal user)
-    {
-        var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null)
-        {
-            return null;
-        }
-
-        if (Guid.TryParse(userIdClaim.Value, out var userId))
-        {
-            return userId;
-        }
-
-        return null;
-    }
     
     [HttpGet]
     public async Task<ActionResult<List<TodoItemDto>>> Get(
@@ -49,12 +31,10 @@ public class TodosController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId is null) return Unauthorized();
-        
+        var userId = User.GetUserId();
         var todos = await _todoService
             .GetFilteredAndSortedTodos(
-                Guid.Parse(userId),
+                userId,
                 sortBy,
                 sortOrder,
                 nameFilter,
@@ -64,18 +44,14 @@ public class TodosController : ControllerBase
                 endDate,
                 page,
                 pageSize);
-        
         return Ok(todos.Adapt<List<TodoItemDto>>());
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var userId = GetUserId(User);
-        if (userId is null) return Unauthorized();
-
-        var result = await _todoService.GetTodoByIdAsync(id, userId.Value);
-        
+        var userId = User.GetUserId();
+        var result = await _todoService.GetTodoByIdAsync(id, userId);
         return result.ToActionResult();
     }
     
@@ -83,12 +59,9 @@ public class TodosController : ControllerBase
     public async Task<IActionResult> Create(CreateTodoItemDto createDto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        
-        var userId = GetUserId(User);
-        if (userId is null) return Unauthorized();
 
-        var result = await _todoService.CreateTodoAsync(createDto, userId.Value);
-        
+        var userId = User.GetUserId();
+        var result = await _todoService.CreateTodoAsync(createDto, userId);
         return result.ToActionResult();
     }
     
@@ -97,22 +70,16 @@ public class TodosController : ControllerBase
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
-        var userId = GetUserId(User);
-        if (userId is null) return Unauthorized();
-        
-        var result = await _todoService.UpdateTodoAsync(id, updateDto, userId.Value);
-        
+        var userId = User.GetUserId();
+        var result = await _todoService.UpdateTodoAsync(id, updateDto, userId);
         return result.ToActionResult();
     }
     
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var userId = GetUserId(User);
-        if (userId is null) return Unauthorized();
-        
-        var result = await _todoService.DeleteTodoAsync(id, userId.Value);
-        
+        var userId = User.GetUserId();
+        var result = await _todoService.DeleteTodoAsync(id, userId);
         return result.ToActionResult();
     }
 }

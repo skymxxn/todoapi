@@ -49,16 +49,18 @@ if (app.Environment.IsDevelopment())
 // ---------- Middleware ----------
 app.UseSerilogRequestLogging();
 
+// ---------- Security ----------
+app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
+
+
+// ---------- Rate Limiting ----------
 app.UseMiddleware<RateLimitClientIdMiddleware>();
 app.UseClientRateLimiting();
 
 // ---------- Global Exception Handling ----------
 app.UseGlobalExceptionHandler();
-
-// ---------- Security ----------
-app.UseHttpsRedirection();
-app.UseAuthentication();
-app.UseAuthorization();
 
 // ---------- Routing ----------
 app.MapControllers();

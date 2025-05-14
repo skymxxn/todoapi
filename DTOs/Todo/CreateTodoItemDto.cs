@@ -2,9 +2,10 @@
 
 namespace Todo.Api.Dtos.Todo;
 
-public class UpdateTodoItemDto
+public class CreateTodoItemDto
 {
-    [Required]
+    [DataType(DataType.Text)]
+    [Required(ErrorMessage = "Name is required")]
     [StringLength(50, MinimumLength = 1)]
     public string Name { get; set; } = string.Empty;
     [DataType(DataType.MultilineText)]

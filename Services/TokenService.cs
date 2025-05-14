@@ -56,21 +56,7 @@ public class TokenService :ITokenService
         
         return CreateToken(claims, secretKey, expirationInMinutes);
     }
-
-    public string CreateEmailVerificationToken(User user)
-    {
-        var claims = new List<Claim>
-        {
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Email, user.Email)
-        };
-        
-        var secretKey = _appSettings.EmailVerificationTokenKey;
-        var expirationInMinutes = _appSettings.EmailVerificationTokenExpirationInMinutes;
-        
-        return CreateToken(claims, secretKey, expirationInMinutes);
-    }
-
+    
     private TokenValidationParameters GetTokenValidationParameters(string secretKey)
     {
         return new TokenValidationParameters
@@ -85,9 +71,23 @@ public class TokenService :ITokenService
             ClockSkew = TimeSpan.Zero
         };
     }
+
+    public string CreateEmailVerificationToken(User user)
+    {
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.Email, user.Email)
+        };
+        
+        var secretKey = _appSettings.EmailVerificationTokenKey;
+        var expirationInMinutes = _appSettings.EmailVerificationTokenExpirationInMinutes;
+        
+        return CreateToken(claims, secretKey, expirationInMinutes);
+    }
     
-    /// Verify email token
-    public async Task<ResultDto<string>> VerifyEmailTokenAsync(string token)
+    /// Validate email verification token
+    public async Task<ResultDto<bool>> ValidateEmailVerificationTokenAsync(string token)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         var secretKey = _appSettings.EmailVerificationTokenKey;
@@ -98,27 +98,65 @@ public class TokenService :ITokenService
         if (userId is null)
         {
             _logger.LogWarning("Invalid token: User ID not found in token claims");
-            return ResultDto<string>.Fail("Invalid token");
+            return ResultDto<bool>.Fail("Invalid token");
         }
             
         var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
         if (user is null)
         {
             _logger.LogWarning("User with ID {UserId} does not exist", userId);
-            return ResultDto<string>.Fail("User not found", 404);
+            return ResultDto<bool>.Fail("User not found", 404);
         }
         
         if (user.IsEmailVerified)
         {
             _logger.LogWarning("User {Username} already verified email", user.Username);
-            return ResultDto<string>.Fail("Email already verified");
+            return ResultDto<bool>.Fail("Email already verified");
         }
             
         user.IsEmailVerified = true;
         await _dbContext.SaveChangesAsync();
             
         _logger.LogInformation("User {Username} verified email successfully", user.Username);
-        return ResultDto<string>.Ok(message: "Email verified successfully");
+        return ResultDto<bool>.Ok(true, message: "Email verified successfully");
+    }
+    
+    public string CreateEmailChangeToken(User user)
+    {
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.Email, user.Email)
+        };
+        
+        var secretKey = _appSettings.EmailChangeTokenKey;
+        var expirationInMinutes = _appSettings.EmailChangeTokenExpirationInMinutes;
+        
+        return CreateToken(claims, secretKey, expirationInMinutes);
+    }
+
+    public async Task<ResultDto<bool>> ValidateEmailChangeTokenAsync(string token)
+    {
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var secretKey = _appSettings.EmailChangeTokenKey;
+
+        var principal = tokenHandler.ValidateToken(token, GetTokenValidationParameters(secretKey), out _);
+            
+        var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId is null)
+        {
+            _logger.LogWarning("Invalid token: User ID not found in token claims");
+            return ResultDto<bool>.Fail("Invalid token");
+        }
+            
+        var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
+        if (user is null)
+        {
+            _logger.LogWarning("User with ID {UserId} does not exist", userId);
+            return ResultDto<bool>.Fail( "User not found", 404);
+        }
+        
+        return ResultDto<bool>.Ok(true, message: "Token is valid");
     }
 
     public string CreatePasswordResetToken(User user)
@@ -135,7 +173,7 @@ public class TokenService :ITokenService
         return CreateToken(claims, secretKey, expirationInMinutes);
     }
     
-    public async Task<ResultDto<Guid>> ValidatePasswordResetTokenAsync(string token)
+    public async Task<ResultDto<bool>> ValidatePasswordResetTokenAsync(string token)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         var secretKey = _appSettings.PasswordResetTokenKey;
@@ -145,17 +183,17 @@ public class TokenService :ITokenService
         if (userId is null)
         {
             _logger.LogWarning("Invalid token: User ID not found in token claims");
-            return await Task.FromResult(ResultDto<Guid>.Fail("Invalid token"));
+            return ResultDto<bool>.Fail("Invalid token");
         }
         
         var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
         if (user is null)
         {
             _logger.LogWarning("User with ID {UserId} does not exist", userId);
-            return await Task.FromResult(ResultDto<Guid>.Fail("User not found", 404));
+            return ResultDto<bool>.Fail("User not found", 404);
         }
         
-        return ResultDto<Guid>.Ok(Guid.Parse(userId), message: "Token is valid");
+        return ResultDto<bool>.Ok(true, message: "Token is valid");
     }
     
     /// Generate a new refresh token

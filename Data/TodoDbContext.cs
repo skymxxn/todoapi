@@ -9,6 +9,7 @@ public class TodoDbContext(DbContextOptions<TodoDbContext> options) : DbContext(
     public DbSet<User> Users => Set<User>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<EmailChangeToken> EmailChangeTokens => Set<EmailChangeToken>();
     
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

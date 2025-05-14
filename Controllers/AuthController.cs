@@ -1,5 +1,4 @@
-﻿using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Todo.Api.Dtos.Token;
 using Todo.Api.Dtos.User;
@@ -30,8 +29,7 @@ public class AuthController : ControllerBase
     [HttpGet("verify-email")]
     public async Task<IActionResult> VerifyEmail([FromQuery] string token)
     {
-        var result = await _tokenService.VerifyEmailTokenAsync(token);
-
+        var result = await _tokenService.ValidateEmailVerificationTokenAsync(token);
         return result.ToActionResult();
     }
     
@@ -46,15 +44,6 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> RefreshToken(RefreshTokenRequestDto request)
     {
         var result = await _tokenService.RefreshTokensAsync(request);
-        return result.ToActionResult();
-    }
-
-    [HttpPost("change-password")]
-    [Authorize]
-    public async Task<IActionResult> ChangePassword(ChangePasswordDto request)
-    {
-        var result = await _authService.ChangePasswordAsync(
-            Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty), request);
         return result.ToActionResult();
     }
 
@@ -76,10 +65,8 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Logout()
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId is null) return Unauthorized();
-        
-        var result = await _authService.LogoutAsync(Guid.Parse(userId));
+        var userId = User.GetUserId();
+        var result = await _authService.LogoutAsync(userId);
         return result.ToActionResult();
     }
 }

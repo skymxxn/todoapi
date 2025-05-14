@@ -12,6 +12,9 @@ public class AppSettingsOptions
     public required string EmailVerificationTokenKey { get; set; }
     public required int EmailVerificationTokenExpirationInMinutes { get; set; }
     
+    public required string EmailChangeTokenKey { get; set; }
+    public required int EmailChangeTokenExpirationInMinutes { get; set; }
+    
     public required string PasswordResetTokenKey { get; set; }
     public required int PasswordResetTokenExpirationInMinutes { get; set; }
 }
