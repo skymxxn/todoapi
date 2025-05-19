@@ -17,14 +17,16 @@ public class AuthService : IAuthService
     private readonly ILogger<AuthService> _logger;
     private readonly IEmailService _emailService;
     private readonly ITokenService _tokenService;
+    private readonly IEmailLimitService _emailLimit;
     
-    public AuthService(TodoDbContext dbContext, IOptions<AppSettingsOptions> appSettings, ILogger<AuthService> logger, IEmailService emailService, ITokenService tokenService)
+    public AuthService(TodoDbContext dbContext, IOptions<AppSettingsOptions> appSettings, ILogger<AuthService> logger, IEmailService emailService, ITokenService tokenService, IEmailLimitService emailLimit)
     {
         _dbContext = dbContext;
         _appSettings = appSettings.Value;
         _logger = logger;
         _emailService = emailService;
         _tokenService = tokenService;
+        _emailLimit = emailLimit;
     }
     
     /// Register user and return user object
@@ -87,11 +89,15 @@ public class AuthService : IAuthService
         
         if (!user.IsEmailVerified)
         {
-            _logger.LogWarning("User with email {Email} has not verified their email. A verification email has been sent.", request.Email);
+            if (!await _emailLimit.TryProcessEmailSendingAsync(user, _logger))
+            {
+                return ResultDto<TokenResponseDto>.Fail("Email sending limit reached. Please try again later.");
+            }
             
             var emailToken = _tokenService.CreateEmailVerificationToken(user);
             await _emailService.SendVerificationEmailAsync(user.Email, emailToken);
             
+            _logger.LogWarning("User with email {Email} has not verified their email. A verification email has been sent.", request.Email);
             return ResultDto<TokenResponseDto>.Fail("Email is not verified. A verification email has been sent.", 403);
         }
        
@@ -117,8 +123,21 @@ public class AuthService : IAuthService
         
         if (!user.IsEmailVerified)
         {
+            if (!await _emailLimit.TryProcessEmailSendingAsync(user, _logger))
+            {
+                return ResultDto<string>.Fail("Email sending limit reached. Please try again later.");
+            }
+            
+            var emailToken = _tokenService.CreateEmailVerificationToken(user);
+            await _emailService.SendVerificationEmailAsync(user.Email, emailToken);
+            
             _logger.LogWarning("User with email {Email} has not verified their email", email);
             return ResultDto<string>.Fail("Email is not verified. A verification email has been sent.", 403);
+        }
+        
+        if (!await _emailLimit.TryProcessEmailSendingAsync(user, _logger))
+        {
+            return ResultDto<string>.Fail("Email sending limit reached. Please try again later.");
         }
         
         var token = _tokenService.CreatePasswordResetToken(user);

@@ -17,13 +17,15 @@ public class AccountService : IAccountService
     private readonly ITokenService _tokenService;
     private readonly IEmailService _emailService;
     private readonly AppSettingsOptions _appSettings;
+    private readonly IEmailLimitService _emailLimit;
     
-    public AccountService(TodoDbContext dbContext, ILogger<AccountService> logger, ITokenService tokenService, IEmailService emailService, IOptions<AppSettingsOptions> appSettings)
+    public AccountService(TodoDbContext dbContext, ILogger<AccountService> logger, ITokenService tokenService, IEmailService emailService, IOptions<AppSettingsOptions> appSettings, IEmailLimitService emailLimit)
     {
         _dbContext = dbContext;
         _logger = logger;
         _tokenService = tokenService;
         _emailService = emailService;
+        _emailLimit = emailLimit;
         _appSettings = appSettings.Value;
     }
 
@@ -76,10 +78,13 @@ public class AccountService : IAccountService
             _logger.LogWarning("Username {NewUsername} is already taken", request.NewUsername);
             return ResultDto<string>.Fail("Username is already taken");
         }
+        
+        var oldUsername = user.Username;
         user.Username = request.NewUsername;
+        
         await _dbContext.SaveChangesAsync();
         
-        _logger.LogInformation("Username changed successfully for user {OldUsername} to {NewUsername}", user.Username, request.NewUsername);
+        _logger.LogInformation("Username changed successfully for user {OldUsername} to {NewUsername}", oldUsername, request.NewUsername);
         return ResultDto<string>.Ok(message: "Username changed successfully");
     }
 
@@ -93,7 +98,7 @@ public class AccountService : IAccountService
         }
         if (!user.IsEmailVerified)
         {
-            _logger.LogWarning("User with email {Email} has not verified their email", user.Email);
+            _logger.LogWarning("User {Username} has not verified their email", user.Username);
             return ResultDto<string>.Fail("Email is not verified", 403);
         }
         
@@ -119,6 +124,11 @@ public class AccountService : IAccountService
             return ResultDto<string>.Fail("Email is already taken");
         }
         
+        if (!await _emailLimit.TryProcessEmailSendingAsync(user, _logger))
+        {
+            return ResultDto<string>.Fail("Email sending limit reached. Please try again later.");
+        }
+        
         var token = _tokenService.CreateEmailChangeToken(user);
         
         var emailChangeToken = new EmailChangeToken
@@ -135,7 +145,7 @@ public class AccountService : IAccountService
         await _dbContext.SaveChangesAsync();
         
         await _emailService.SendEmailChangeEmailAsync(user.Email, token);
-        return ResultDto<string>.Ok(message: "Email change token sent successfully");
+        return ResultDto<string>.Ok(message: "Email change request sent successfully");
     }
 
     public async Task<ResultDto<string>> ChangeEmailAsync(string token)
@@ -161,14 +171,18 @@ public class AccountService : IAccountService
             return ResultDto<string>.Fail("User not found", 404);
         }
         
+        var oldEmail = user.Email;
         user.Email = emailChangeToken.NewEmail;
         user.IsEmailVerified = false;
         emailChangeToken.IsUsed = true;
-        _dbContext.Users.Update(user);
-        _dbContext.EmailChangeTokens.Update(emailChangeToken);
         await _dbContext.SaveChangesAsync();
-        _logger.LogInformation("Email changed successfully for user {Username}", user.Username);
-        return ResultDto<string>.Ok(message: "Email changed successfully");
+        _logger.LogInformation("Email changed successfully from {OldEmail} to {NewEmail} for user {Username}", oldEmail,user.Email , user.Username);
+        
+        var emailToken = _tokenService.CreateEmailVerificationToken(user);
+        await _emailService.SendVerificationEmailAsync(user.Email, emailToken);
+        _logger.LogInformation("Verification email sent to {NewEmail}", user.Email);
+        
+        return ResultDto<string>.Ok(message: "Email changed successfully. A verification email has been sent to the new address");
     }
 
     private async Task<EmailChangeToken?> GetEmailChangeTokenAsync(string token)
@@ -200,10 +214,35 @@ public class AccountService : IAccountService
         }
         
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-        _dbContext.Users.Update(user);
         await _dbContext.SaveChangesAsync();
         
         _logger.LogInformation("Password changed successfully for user {Username}", user.Username);
         return ResultDto<string>.Ok(message: "Password changed successfully");
+    }
+
+    public async Task<ResultDto<string>> ResendEmailConfirmationAsync(Guid userId)
+    {
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user is null)
+        {
+            _logger.LogWarning("User with ID {UserId} does not exist", userId);
+            return ResultDto<string>.Fail("User not found", 404);
+        }
+        
+        if (user.IsEmailVerified)
+        {
+            _logger.LogWarning("User with email {Username} has already verified their email", user.Username);
+            return ResultDto<string>.Fail("Email is already verified");
+        }
+        
+        if (!await _emailLimit.TryProcessEmailSendingAsync(user, _logger))
+        {
+            return ResultDto<string>.Fail("Email sending limit reached. Please try again later.");
+        }
+        
+        var emailToken = _tokenService.CreateEmailVerificationToken(user);
+        await _emailService.SendVerificationEmailAsync(user.Email, emailToken);
+        
+        return ResultDto<string>.Ok(message: "A verification email has been sent");
     }
 }

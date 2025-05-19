@@ -7,6 +7,7 @@ public class User
     public string Email { get; set; } = string.Empty;
     public string? EmailVerificationToken { get; set; }
     public bool IsEmailVerified { get; set; }
+    public DateTime? LastEmailSentAt { get; set; }
     public string PasswordHash { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public DateTime Created { get; set; } = DateTime.UtcNow;

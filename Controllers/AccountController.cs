@@ -1,5 +1,4 @@
-﻿using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Todo.Api.Dtos.Account;
 using Todo.Api.Extensions;
@@ -55,6 +54,14 @@ public class AccountController : ControllerBase
     {
         var userId = User.GetUserId();
         var result = await _accountService.ChangePasswordAsync(userId, request);
+        return result.ToActionResult();
+    }
+    
+    [HttpPost("resend-email-confirmation")]
+    public async Task<IActionResult> ResendEmailConfirmation()
+    {
+        var userId = User.GetUserId();
+        var result = await _accountService.ResendEmailConfirmationAsync(userId);
         return result.ToActionResult();
     }
 }

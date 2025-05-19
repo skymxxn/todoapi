@@ -11,4 +11,5 @@ public interface IAccountService
     public Task<ResultDto<string>> RequestChangeEmailAsync(Guid userId, ChangeEmailDto request);
     public Task<ResultDto<string>> ChangeEmailAsync(string token);
     public Task<ResultDto<string>> ChangePasswordAsync(Guid userId, ChangePasswordDto request);
+    public Task<ResultDto<string>> ResendEmailConfirmationAsync(Guid userId);
 }
