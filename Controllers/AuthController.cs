@@ -33,6 +33,13 @@ public class AuthController : ControllerBase
         return result.ToActionResult();
     }
     
+    [HttpPost("resend-verification-email")]  
+    public async Task<IActionResult> ResendVerificationEmail(EmailDto request)
+    {
+        var result = await _authService.ResendEmailConfirmationAsync(request.Email);
+        return result.ToActionResult();
+    }
+    
     [HttpPost("login")]
     public async Task<IActionResult> Login(UserLoginDto request)
     {

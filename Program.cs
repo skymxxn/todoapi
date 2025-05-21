@@ -18,7 +18,8 @@ builder.Services
     .AddAppOptions(builder.Configuration)
     .AddAppDbContext(builder.Configuration)
     .AddAppAuthentication(builder.Configuration)
-    .AddAppServices(builder.Configuration);
+    .AddAppServices(builder.Configuration)
+    .AddAppCors(builder.Configuration);
 
 // ---------- MVC & Swagger ----------
 builder.Services.AddControllers();
@@ -49,11 +50,13 @@ if (app.Environment.IsDevelopment())
 // ---------- Middleware ----------
 app.UseSerilogRequestLogging();
 
+// ---------- Cors ----------
+app.UseAppCors();
+
 // ---------- Security ----------
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
-
 
 // ---------- Rate Limiting ----------
 app.UseMiddleware<RateLimitClientIdMiddleware>();

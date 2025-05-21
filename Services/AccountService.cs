@@ -245,4 +245,20 @@ public class AccountService : IAccountService
         
         return ResultDto<string>.Ok(message: "A verification email has been sent");
     }
+    
+    public async Task<ResultDto<string>> DeleteAccountAsync(Guid userId)
+    {
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user is null)
+        {
+            _logger.LogWarning("User with ID {UserId} does not exist", userId);
+            return ResultDto<string>.Fail("User not found", 404);
+        }
+        
+        _dbContext.Users.Remove(user);
+        await _dbContext.SaveChangesAsync();
+        
+        _logger.LogInformation("Account {Username} deleted successfully", user.Username);
+        return ResultDto<string>.Ok(message: "Account deleted successfully");
+    }
 }

@@ -13,11 +13,13 @@ namespace Todo.Api.Extensions;
 
 public static class ServiceCollectionsExtensions
 {
+    private const string AppCorsPolicy = "AppCorsPolicy";
+
     public static IServiceCollection AddAppOptions(this IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<SmtpOptions>(configuration.GetSection("Smtp"));
-        services.Configure<AppSettingsOptions>(configuration.GetSection("AppSettings"));
-        services.Configure<FrontendOptions>(configuration.GetSection("Frontend"));
+        services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.Smtp));
+        services.Configure<AppSettingsOptions>(configuration.GetSection(AppSettingsOptions.SectionName));
+        services.Configure<FrontendOptions>(configuration.GetSection(FrontendOptions.SectionName));
         
         return services;
     }
@@ -92,5 +94,34 @@ public static class ServiceCollectionsExtensions
             });
         
         return services;
+    }
+    
+    public static IServiceCollection AddAppCors(this IServiceCollection services, IConfiguration configuration)
+    {
+        var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+        if (allowedOrigins == null || allowedOrigins.Length == 0)
+        {
+            throw new InvalidOperationException("CORS settings are not properly configured.");
+        }
+        
+        services.AddCors(options =>
+        {
+            options.AddPolicy(AppCorsPolicy, builder =>
+            {
+                builder
+                    .WithOrigins(allowedOrigins)
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials();
+            });
+        });
+            
+        return services;
+    }
+        
+    public static IApplicationBuilder UseAppCors(this IApplicationBuilder app)
+    {
+        app.UseCors(AppCorsPolicy);
+        return app;
     }
 }

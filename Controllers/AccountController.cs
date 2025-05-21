@@ -64,4 +64,12 @@ public class AccountController : ControllerBase
         var result = await _accountService.ResendEmailConfirmationAsync(userId);
         return result.ToActionResult();
     }
+    
+    [HttpDelete("delete-account")]
+    public async Task<IActionResult> DeleteAccount()
+    {
+        var userId = User.GetUserId();
+        var result = await _accountService.DeleteAccountAsync(userId);
+        return result.ToActionResult();
+    }
 }

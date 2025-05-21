@@ -7,7 +7,7 @@ namespace Todo.Api.Services.Interfaces;
 public interface ITodoService
 {
     public Task<ResultDto<TodoItemDto>> GetTodoByIdAsync(int id, Guid userId);
-    public Task<List<TodoItem>?> GetFilteredAndSortedTodos(Guid userId, string sortBy, string sortOrder, string? nameFilter, bool? isCompleted, int? categoryId, DateTime? startDate, DateTime? endDate, int page, int pageSize);
+    public Task<List<TodoItem>?> GetFilteredAndSortedTodos(Guid userId, string sortBy, string sortOrder, string? nameFilter, bool? isCompleted, int? categoryId, DateTime? startDate, DateTime? endDate, int page, int pageSize, int? priorityLevel, DateTime? dueStartDate, DateTime? dueEndDate);
     public Task<ResultDto<TodoItemDto>> CreateTodoAsync(CreateTodoItemDto todoItemDto, Guid userId);
     public Task<ResultDto<TodoItemDto>> UpdateTodoAsync(int id, UpdateTodoItemDto todoItemDto, Guid userId);
     public Task<ResultDto<TodoItemDto>> DeleteTodoAsync(int id, Guid userId);

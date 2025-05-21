@@ -31,7 +31,7 @@ namespace Todo.Api.Services
             Guid userId, string sortBy, string sortOrder,
             string? nameFilter, bool? isCompleted, int? categoryId,
             DateTime? startDate, DateTime? endDate,
-            int page, int pageSize
+            int page, int pageSize, int? priorityLevel, DateTime? dueStartDate, DateTime? dueEndDate
             )
         {
             if (page < 1)
@@ -54,7 +54,7 @@ namespace Todo.Api.Services
                 pageSize = maxPageSize;
             }
             
-            var cacheKey = $"Todos_{userId}_{sortBy}_{sortOrder}_{nameFilter}_{isCompleted}_{categoryId}_{startDate}_{endDate}_{page}_{pageSize}";
+            var cacheKey = $"Todos_{userId}_{sortBy}_{sortOrder}_{nameFilter}_{isCompleted}_{categoryId}_{startDate}_{endDate}_{page}_{pageSize}_{priorityLevel}_{dueStartDate}_{dueEndDate}";
             if (_cache.TryGetValue(cacheKey, out List<TodoItem>? cachedTodos))
             {
                 return cachedTodos;
@@ -64,7 +64,7 @@ namespace Todo.Api.Services
 
             if (user == null)
             {
-                _logger.LogWarning("User {Username} not found", userId);
+                _logger.LogWarning("User with ID {UserId} not found", userId);
                 throw new Exception("User not found");
             }
             
@@ -98,15 +98,48 @@ namespace Todo.Api.Services
                 endDate = DateTime.SpecifyKind(endDate.Value, DateTimeKind.Utc);
                 query = query.Where(t => t.CreatedAt <= endDate.Value);
             }
+            
+            if (priorityLevel.HasValue)
+            {
+                query = query.Where(t => (int)t.PriorityLevel == priorityLevel.Value);
+            }
+
+            if (dueStartDate.HasValue)
+            {
+                query = query.Where(t => t.DueDate.HasValue && t.DueDate.Value >= dueStartDate.Value);
+            }
+
+            if (dueEndDate.HasValue)
+            {
+                query = query.Where(t => t.DueDate.HasValue && t.DueDate.Value <= dueEndDate.Value);
+            }
 
             switch (sortBy.ToLower())
             {
                 case "name":
-                    query = sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(t => t.Name) : query.OrderBy(t => t.Name);
+                    query = sortOrder.Equals("desc", StringComparison.OrdinalIgnoreCase)
+                        ? query.OrderByDescending(t => t.Name)
+                        : query.OrderBy(t => t.Name);
                     break;
+
                 case "createdat":
-                    query = sortOrder.Equals("desc", StringComparison.CurrentCultureIgnoreCase) ? query.OrderByDescending(t => t.CreatedAt) : query.OrderBy(t => t.CreatedAt);
+                    query = sortOrder.Equals("desc", StringComparison.OrdinalIgnoreCase)
+                        ? query.OrderByDescending(t => t.CreatedAt)
+                        : query.OrderBy(t => t.CreatedAt);
                     break;
+
+                case "duedate":
+                    query = sortOrder.Equals("desc", StringComparison.OrdinalIgnoreCase)
+                        ? query.OrderByDescending(t => t.DueDate)
+                        : query.OrderBy(t => t.DueDate);
+                    break;
+
+                case "priority":
+                    query = sortOrder.Equals("desc", StringComparison.OrdinalIgnoreCase)
+                        ? query.OrderByDescending(t => t.PriorityLevel)
+                        : query.OrderBy(t => t.PriorityLevel);
+                    break;
+
                 default:
                     query = query.OrderBy(t => t.CreatedAt);
                     break;
@@ -243,7 +276,7 @@ namespace Todo.Api.Services
             
             _logger.LogInformation("Todo with ID {TodoId} successfully updated by user {Username}.", id, user.Username);
             
-            return ResultDto<TodoItemDto>.Ok(message: "Todo updated successfully", 204);
+            return ResultDto<TodoItemDto>.Ok(message: "Todo updated successfully");
         }
         
         public async Task<ResultDto<TodoItemDto>> DeleteTodoAsync(int id, Guid userId)

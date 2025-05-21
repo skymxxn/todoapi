@@ -111,6 +111,32 @@ public class AuthService : IAuthService
             await _tokenService.CreateTokenResponse(user), message: "Login successful");
     }
 
+    public async Task<ResultDto<string>> ResendEmailConfirmationAsync(string email)
+    {
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
+        if (user is null)
+        {
+            _logger.LogWarning("User with email {Email} does not exist", email);
+            return ResultDto<string>.Fail("User not found", 404);
+        }
+        
+        if (user.IsEmailVerified)
+        {
+            _logger.LogWarning("User {Username} has already verified their email", user.Username);
+            return ResultDto<string>.Fail("Email is already verified");
+        }
+        
+        if (!await _emailLimit.TryProcessEmailSendingAsync(user, _logger))
+        {
+            return ResultDto<string>.Fail("Email sending limit reached. Please try again later.");
+        }
+        
+        var emailToken = _tokenService.CreateEmailVerificationToken(user);
+        await _emailService.SendVerificationEmailAsync(user.Email, emailToken);
+        
+        return ResultDto<string>.Ok(message: "Verification email sent successfully");
+    }
+
     /// Request password reset and send email with reset link
     public async Task<ResultDto<string>> RequestPasswordResetAsync(string email)
     {

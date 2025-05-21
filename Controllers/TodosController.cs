@@ -29,7 +29,10 @@ public class TodosController : ControllerBase
         [FromQuery] DateTime? startDate = null,
         [FromQuery] DateTime? endDate = null,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 25)
+        [FromQuery] int pageSize = 25,
+        [FromQuery] int? priorityLevel = null,
+        [FromQuery] DateTime? dueStartDate = null,
+        [FromQuery] DateTime? dueEndDate = null)
     {
         var userId = User.GetUserId();
         var todos = await _todoService
@@ -43,7 +46,10 @@ public class TodosController : ControllerBase
                 startDate,
                 endDate,
                 page,
-                pageSize);
+                pageSize,
+                priorityLevel,
+                dueStartDate,
+                dueEndDate);
         return Ok(todos.Adapt<List<TodoItemDto>>());
     }
 
