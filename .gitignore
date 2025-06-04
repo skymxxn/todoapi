@@ -74,7 +74,7 @@ desktop.ini
 *.stackdump
 *.patch
 
-# Docker, Kubernetes и CI
+# Docker, Kubernetes and CI
 docker-compose.override.yml
 *.pid
 *.pid.lock
