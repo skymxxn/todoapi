@@ -7,7 +7,8 @@
 - :lock: JWT + refresh токены  
 - :email: Подтверждение email и восстановление пароля  
 - :white_check_mark: CRUD-операции для задач и категорий  
-- :mag: Фильтрация, сортировка и пагинация задач  
+- :mag: Фильтрация, сортировка и пагинация задач
+- :zap: Кэширование In-Memory
 - :repeat: Middleware для логирования, обработки ошибок и лимитирования запросов  
 - :gear: Разделение на слои: Entities, DTOs, Services, Controllers  
 - :bar_chart: Подключение Serilog и ExpressionTemplate для логов  
@@ -16,7 +17,8 @@
 ## :gear: Технологии
 
 - ASP.NET Core 9  
-- Entity Framework Core + PostgreSQL  
+- Entity Framework Core + PostgreSQL
+- In-Memory Cache  
 - JWT (Json Web Token)  
 - Serilog + Seq  
 - FluentValidation  
